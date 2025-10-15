@@ -38,7 +38,7 @@
 extern bool g_ffc_disable;
 
 enum print_reason {
-	PR_INTERRUPT	= BIT(0),
+	PR_INTERRUPT		= BIT(0),
 	PR_REGISTER		= BIT(1),
 	PR_OEM			= BIT(2),
 	PR_DEBUG		= BIT(3),
@@ -99,7 +99,7 @@ static int bq2589x_set_fast_charge_mode(struct bq2589x *bq, int pd_active)
 	/*If TA plug in with PPS, battery auth success and soc less than 95%, FFC flag will enabled.
 		The temp is normal set fastcharge mode as 1 and jeita loop also handle fastcharge prop*/
 	//pr_info("batt_verify: %d, batt_soc: %d, batt_temp: %d\n", batt_verify, batt_soc, batt_temp);
-	if ((pd_active == 2) && batt_soc < 95) {
+	if ((pd_active == 2) && batt_verify && batt_soc < 95) {
 		g_ffc_disable = false;
 		propval.intval = (batt_temp >= 150 && batt_temp <= 480) ? 1 : 0;
 	} else {
@@ -223,19 +223,18 @@ static int bq2589x_enable_otg(struct bq2589x *bq)
 {
 	u8 val = BQ2589X_OTG_ENABLE << BQ2589X_OTG_CONFIG_SHIFT;
 
-	return bq2589x_update_bits(bq, BQ2589X_REG_03,
-							   BQ2589X_OTG_CONFIG_MASK, val);
+	return bq2589x_update_bits(bq, BQ2589X_REG_03, BQ2589X_OTG_CONFIG_MASK, val);
 }
 
 static int bq2589x_disable_otg(struct bq2589x *bq)
 {
 	u8 val = BQ2589X_OTG_DISABLE << BQ2589X_OTG_CONFIG_SHIFT;
 
-	return bq2589x_update_bits(bq, BQ2589X_REG_03,
-							   BQ2589X_OTG_CONFIG_MASK, val);
+	return bq2589x_update_bits(bq, BQ2589X_REG_03, BQ2589X_OTG_CONFIG_MASK, val);
 }
 EXPORT_SYMBOL_GPL(bq2589x_disable_otg);
 
+#if 0
 static int bq2589x_set_otg_volt(struct bq2589x *bq, int volt)
 {
 	u8 val = 0;
@@ -259,6 +258,7 @@ static int bq2589x_set_otg_volt(struct bq2589x *bq, int volt)
 	return bq2589x_update_bits(bq, BQ2589X_REG_0A, BQ2589X_BOOSTV_MASK, val);
 }
 EXPORT_SYMBOL_GPL(bq2589x_set_otg_volt);
+#endif
 
 static int bq2589x_set_otg_current(struct bq2589x *bq, int curr)
 {
@@ -380,6 +380,7 @@ int bq2589x_adc_read_battery_volt(struct bq2589x *bq)
 }
 EXPORT_SYMBOL_GPL(bq2589x_adc_read_battery_volt);
 
+#if 0
 int bq2589x_adc_read_sys_volt(struct bq2589x *bq)
 {
 	uint8_t val;
@@ -396,6 +397,7 @@ int bq2589x_adc_read_sys_volt(struct bq2589x *bq)
 	}
 }
 EXPORT_SYMBOL_GPL(bq2589x_adc_read_sys_volt);
+#endif
 
 int bq2589x_adc_read_vbus_volt(struct bq2589x *bq)
 {
@@ -414,6 +416,7 @@ int bq2589x_adc_read_vbus_volt(struct bq2589x *bq)
 }
 EXPORT_SYMBOL_GPL(bq2589x_adc_read_vbus_volt);
 
+#if 0
 int bq2589x_adc_read_temperature(struct bq2589x *bq)
 {
 	uint8_t val;
@@ -430,6 +433,7 @@ int bq2589x_adc_read_temperature(struct bq2589x *bq)
 	}
 }
 EXPORT_SYMBOL_GPL(bq2589x_adc_read_temperature);
+#endif
 
 int bq2589x_adc_read_charge_current(struct bq2589x *bq)
 {
@@ -797,6 +801,7 @@ int bq2589x_reset_chip(struct bq2589x *bq)
 }
 EXPORT_SYMBOL_GPL(bq2589x_reset_chip);
 
+#if 0
 int bq2589x_enter_ship_mode(struct bq2589x *bq)
 {
 	int ret;
@@ -806,6 +811,7 @@ int bq2589x_enter_ship_mode(struct bq2589x *bq)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(bq2589x_enter_ship_mode);
+#endif
 
 int bq2589x_enter_hiz_mode(struct bq2589x *bq)
 {
@@ -823,6 +829,7 @@ int bq2589x_exit_hiz_mode(struct bq2589x *bq)
 }
 EXPORT_SYMBOL_GPL(bq2589x_exit_hiz_mode);
 
+#if 0
 int bq2589x_get_hiz_mode(struct bq2589x *bq, u8 *state)
 {
 	u8 val;
@@ -853,6 +860,7 @@ int bq2589x_pumpx_enable(struct bq2589x *bq, int enable)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(bq2589x_pumpx_enable);
+#endif
 
 int bq2589x_pumpx_increase_volt(struct bq2589x *bq)
 {
@@ -1005,6 +1013,7 @@ static int bq2589x_enable_ico(struct bq2589x* bq, bool enable)
 }
 EXPORT_SYMBOL_GPL(bq2589x_enable_ico);
 
+#if 0
 static int bq2589x_read_idpm_limit(struct bq2589x *bq)
 {
 	uint8_t val;
@@ -1021,6 +1030,7 @@ static int bq2589x_read_idpm_limit(struct bq2589x *bq)
 	}
 }
 EXPORT_SYMBOL_GPL(bq2589x_read_idpm_limit);
+#endif
 
 bool bq2589x_is_charge_done(void)
 {
@@ -1048,7 +1058,7 @@ static void bq2589x_dump_regs(struct bq2589x *bq)
 	int addr, ret;
 	u8 val;
 
-	bq_dbg(PR_OEM, "bq2589x_dump_regs:\n");
+	bq_dbg(PR_OEM, "dump_regs:\n");
 	for (addr = 0x0; addr <= 0x14; addr++) {
 		ret = bq2589x_read_byte(bq, addr, &val);
 		if (ret == 0)
@@ -1308,7 +1318,7 @@ static void bq2589x_psy_unregister(struct bq2589x *bq)
 }
 
 static ssize_t bq2589x_show_registers(struct device *dev,
-				struct device_attribute *attr, char *buf)
+			struct device_attribute *attr, char *buf)
 {
 	u8 addr;
 	u8 val;
@@ -1577,21 +1587,23 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 	case BQ2589X_VBUS_MAXC:
 		bq_dbg(PR_OEM, "charger_type: MAXC\n");
 		bq2589x_enable_ico(bq, !bq->cfg.enable_ico);
-		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1800);
 		bq2589x_set_input_volt_limit(bq, 8300);
+		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1800);
 		/*if (bq->cfg.use_absolute_vindpm)
 			bq2589x_adjust_absolute_vindpm(bq);*/
 		//schedule_delayed_work(&bq->ico_work, 0);
+		bq2589x_usb_switch(bq, true);
 		break;
 	case BQ2589X_VBUS_USB_DCP:
 		bq_dbg(PR_OEM, "charger_type: DCP, pd_active=%d\n", bq->pd_active);
 		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, bq->cfg.input_current_2000);
 		schedule_delayed_work(&bq->check_pe_tuneup_work, 0);
+		bq2589x_usb_switch(bq, true);
 		break;
 	case BQ2589X_VBUS_USB_CDP:
 		bq_dbg(PR_OEM, "charger_type: CDP\n");
 		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1500);
-		msleep(1000);
+		//msleep(1000);
 		bq2589x_usb_switch(bq, false);
 		break;
 	case BQ2589X_VBUS_USB_SDP:
@@ -1605,13 +1617,15 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 			}
 		}
 
+		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 500);
 		if (!bq->pd_active) {
-			if (propval.intval >= 1500)
+			if (propval.intval >= 1500) {
 				vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, propval.intval);
-			else
+			} else {
 				vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 500);
+			}
 		} else {
-			ret = bq2589x_set_input_current_limit(bq, bq->cfg.charge_current_1500);
+			vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1500);
 		}
 		bq2589x_usb_switch(bq, false);
 		break;
@@ -1627,11 +1641,13 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 			}
 		}
 
+		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 500);
 		if (!bq->pd_active) {
-			if (propval.intval >= 1500)
+			if (propval.intval >= 1500) {
 				vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, propval.intval);
-			else
+			} else {
 				vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1000);
+			}
 		} else {
 			vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, bq->cfg.input_current_2000);
 		}
@@ -1644,6 +1660,11 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 		break;
 	}
 
+	if (bq->vbus_type == BQ2589X_VBUS_USB_SDP && !bq->pd_active) {
+		vote(bq->fcc_votable, MAIN_SET_VOTER, true, 500);
+	} else {
+		vote(bq->fcc_votable, MAIN_SET_VOTER, false, 0);
+	}
 	//bq2589x_dump_regs(bq);
 	//power_supply_changed(bq->usb_psy);
 	//cancel_delayed_work_sync(&bq->monitor_work);
@@ -1656,12 +1677,13 @@ static void bq2589x_adapter_out_workfunc(struct work_struct *work)
 	int ret;
 
 //modify by HTH-209427/HTH-209841 at 2022/05/12 begin
-	vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 0);
 	ret = bq2589x_set_input_volt_limit(bq, 4600);
 	if (ret < 0)
 		bq_dbg(PR_OEM, "reset vindpm threshold to 4600 failed: %d\n", ret);
 	else
 		bq_dbg(PR_OEM, "reset vindpm threshold to 4600 successfully\n");
+	vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 0);
+	vote(bq->fcc_votable, MAIN_SET_VOTER, true, 500);
 //modify by HTH-209427/HTH-209841 at 2022/05/12 end
 
 	cancel_delayed_work_sync(&bq->monitor_work);
@@ -1935,7 +1957,7 @@ static void bq2589x_monitor_workfunc(struct work_struct *work)
 	}
 #endif
 
-	bq2589x_dump_regs(bq);
+	//bq2589x_dump_regs(bq);
 	bq2589x_reset_watchdog_timer(bq);
 	bq->rsoc = bq2589x_read_batt_rsoc(bq);
 	bq->vbus_volt = bq2589x_adc_read_vbus_volt(bq);
@@ -2159,7 +2181,7 @@ static enum power_supply_type bq2589x_get_charger_type(struct bq2589x *bq)
 
 		if (bq->part_no == SC89890H) {
 //modify by HTH-223146 at 2022/06/23 begin
-			bq2589x_set_input_current_limit(bq, 2000);
+			//bq2589x_set_input_current_limit(bq, 2000);
 //modify by HTH-223146 at 2022/06/23 end
 			bq2589x_write_byte(bq, BQ2589X_REG_01, 0xC9);
 		}
@@ -2173,9 +2195,9 @@ static enum power_supply_type bq2589x_get_charger_type(struct bq2589x *bq)
 		bq_dbg(PR_OEM, "charger_type: DCP\n");
 		chg_type = POWER_SUPPLY_TYPE_USB_DCP;
 //modify by HTH-223146 at 2022/06/23 begin
-		if (bq->part_no == SC89890H) {
+		/*if (bq->part_no == SC89890H) {
 			bq2589x_set_input_current_limit(bq, 2000);
-		}
+		}*/
 //modify by HTH-223146 at 2022/06/23 begin
 		break;
 	case BQ2589X_VBUS_USB_CDP:
@@ -2796,6 +2818,7 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 	}
 #endif //for ovp lead reboot
 
+	vote(bq->fcc_votable, MAIN_SET_VOTER, true, 500);
 	vote(bq->fcc_votable, PROFILE_CHG_VOTER, true, CHG_FCC_CURR_MAX);
 	vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, CHG_ICL_CURR_MAX);
 	vote(bq->chg_dis_votable, "BMS_FC_VOTER", false, 0);
@@ -2829,6 +2852,8 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 #endif
 
 	enable_irq_wake(irqn);
+	bq2589x_dump_regs(bq);
+
 	vbus_type = bq2589x_get_vbus_type(bq);
 	if ( vbus_type != BQ2589X_VBUS_OTG) {
 		bq2589x_usb_switch(bq, true);

@@ -7,13 +7,13 @@
 
 enum bq2589x_vbus_type {
 	BQ2589X_VBUS_NONE,
-	BQ2589X_VBUS_USB_SDP,//5V/500MA
-	BQ2589X_VBUS_USB_CDP, /*CDP for bq25890, Adapter for bq25892*///5V/1A
-	BQ2589X_VBUS_USB_DCP,//5V/2A
-	BQ2589X_VBUS_MAXC,//HVDCP	9V/1A
-	BQ2589X_VBUS_UNKNOWN,//5V/500MA
-	BQ2589X_VBUS_NONSTAND,//float 5V/1A
-	BQ2589X_VBUS_OTG,//5V/
+	BQ2589X_VBUS_USB_SDP, // 5V/500MA
+	BQ2589X_VBUS_USB_CDP, // CDP for bq25890, Adapter for bq25892: 5V/1A
+	BQ2589X_VBUS_USB_DCP, // 5V/2A
+	BQ2589X_VBUS_MAXC, // HVDCP 9V/1A
+	BQ2589X_VBUS_UNKNOWN, // 5V/500MA
+	BQ2589X_VBUS_NONSTAND, // float 5V/1A
+	BQ2589X_VBUS_OTG, // 5V
 	BQ2589X_VBUS_TYPE_NUM,
 };
 
@@ -146,9 +146,9 @@ struct pe_ctrl {
 	bool tune_fail;
 	int tune_count;
 	int target_volt;
-	int high_volt_level;/* vbus volt > this threshold means tune up successfully */
+	int high_volt_level; /* vbus volt > this threshold means tune up successfully */
 	int low_volt_level; /* vbus volt < this threshold means tune down successfully */
-	int vbat_min_volt;  /* to tune up voltage only when vbat > this threshold */
+	int vbat_min_volt; /* to tune up voltage only when vbat > this threshold */
 };
 
 extern int main_set_hiz_mode(bool en);

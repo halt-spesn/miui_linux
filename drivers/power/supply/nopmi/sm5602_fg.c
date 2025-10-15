@@ -505,7 +505,7 @@ short tex_meas_adc_code[249] = {
 
 static bool fg_init(struct i2c_client *client);
 static bool fg_reg_init(struct i2c_client *client);
-static int show_registers(struct seq_file *m, void *data);
+//static int fg_dump_debug(struct seq_file *m, void *data);
 static int fg_set_fastcharge_mode(struct sm_fg_chip *sm, bool enable);
 static int calculate_delta_time(ktime_t time_stamp, int *delta_time_s);
 static int fg_read_current(struct sm_fg_chip *sm);
@@ -884,15 +884,15 @@ static int __calculate_battery_temp_ex(struct sm_fg_chip *sm, u16 uval)
 	/* only apply NTC compensation if current > 0. */
 	curr = fg_read_current(sm); // must return mA
 	if (curr > 0) {
-		/* rtrace: uohm: 7200uohm = 7.2mohm */
-		if (curr <= 1750) {
+		/* rtrace: uohm: 7300uohm = 7.3mohm */
+		if (curr <= 1000) {
 			rtrace = sm->rtrace;
-		} else if (curr <= 3000) {
+		} else if (curr <= 2250) {
 			rtrace = sm->rtrace * 2;
-		} else if (curr <= 4250) {
+		} else if (curr <= 3500) {
 			rtrace = sm->rtrace * 3;
 		} else {
-			rtrace = 7200;
+			rtrace = 7300;
 		}
 
 		len_meas_data = sizeof(tex_meas_uV) / sizeof(int);
@@ -1457,7 +1457,9 @@ static int fg_get_batt_status(struct sm_fg_chip *sm)
 
 	if (!sm->batt_present)
 		return POWER_SUPPLY_STATUS_UNKNOWN;
-	else if (sm->batt_fc && charge_done && (sm->batt_soc / 10 > 95))
+	// now we are using smooth_tracking
+	// else if (sm->batt_fc && charge_done && (sm->batt_soc / 10 > 95))
+	else if (sm->batt_fc && charge_done && (sm->param.batt_soc / 10 > 95))
 		return POWER_SUPPLY_STATUS_FULL;
 	else if (sm->batt_dsg)
 		return POWER_SUPPLY_STATUS_DISCHARGING;
@@ -1942,9 +1944,9 @@ static const u8 fg_dump_regs[] = {
 	0x96
 };
 
-#if 0
-static int fg_dump_debug(struct sm_fg_chip *sm)
+static int fg_dump_debug(struct seq_file *m, void *data)
 {
+	struct sm_fg_chip *sm = m->private;
 	int i;
 	int ret;
 	u16 val = 0;
@@ -1952,17 +1954,17 @@ static int fg_dump_debug(struct sm_fg_chip *sm)
 	for (i = 0; i < ARRAY_SIZE(fg_dump_regs); i++) {
 		ret = fg_read_word(sm, fg_dump_regs[i], &val);
 		if (!ret)
-			pr_info("Reg[0x%02X] = 0x%02X\n", fg_dump_regs[i], val);
+			seq_printf(m, "Reg[0x%02X] = 0x%04X\n", fg_dump_regs[i], val);
 	}
+
 	return 0;
 }
-#endif
 
 static int reg_debugfs_open(struct inode *inode, struct file *file)
 {
 	struct sm_fg_chip *sm = inode->i_private;
 
-	return single_open(file, show_registers, sm);
+	return single_open(file, fg_dump_debug, sm);
 }
 
 static const struct file_operations reg_debugfs_ops = {
@@ -1976,23 +1978,25 @@ static const struct file_operations reg_debugfs_ops = {
 static void create_debugfs_entry(struct sm_fg_chip *sm)
 {
 	sm->debug_root = debugfs_create_dir("sm_fg", NULL);
-	if (!sm->debug_root)
+
+	if (!sm->debug_root) {
 		pr_err("failed to create debug dir\n");
+		return;
+	}
 
 	if (sm->debug_root) {
-		debugfs_create_file("registers", S_IFREG | S_IRUGO,
-					sm->debug_root, sm, &reg_debugfs_ops);
-
+		debugfs_create_file("registers",
+					S_IFREG | S_IRUGO,
+					sm->debug_root, sm,
+					&reg_debugfs_ops);
 		debugfs_create_x32("fake_soc",
 					S_IFREG | S_IWUSR | S_IRUGO,
 					sm->debug_root,
 					&(sm->fake_soc));
-
 		debugfs_create_x32("fake_temp",
 					S_IFREG | S_IWUSR | S_IRUGO,
 					sm->debug_root,
 					&(sm->fake_temp));
-
 		debugfs_create_x32("skip_reads",
 					S_IFREG | S_IWUSR | S_IRUGO,
 					sm->debug_root,
@@ -2004,21 +2008,23 @@ static void create_debugfs_entry(struct sm_fg_chip *sm)
 	}
 }
 
-static int show_registers(struct seq_file *m, void *data)
+#if 1
+static int fg_show_registers(struct sm_fg_chip *sm)
 {
-	struct sm_fg_chip *sm = m->private;
 	int i;
 	int ret;
 	u16 val = 0;
 
+	pr_info("show_registers:\n");
 	for (i = 0; i < ARRAY_SIZE(fg_dump_regs); i++) {
 		ret = fg_read_word(sm, fg_dump_regs[i], &val);
 		if (!ret)
-			seq_printf(m, "Reg[0x%02X] = 0x%02X\n", fg_dump_regs[i], val);
+			pr_info("Reg[0x%02X] = 0x%04X\n", fg_dump_regs[i], val);
 	}
 
 	return 0;
 }
+#endif
 
 static ssize_t fg_attr_show_rm(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -2316,7 +2322,7 @@ static int fg_check_full_status(struct sm_fg_chip *sm)
 		sm->chg_dis_votable = find_votable("CHG_DISABLE");
 
 	if (!sm->fv_votable)
-		sm->fv_votable = find_votable("BBC_FV");
+		sm->fv_votable = find_votable("FV");
 
 	rc = power_supply_get_property(sm->usb_psy,
 			POWER_SUPPLY_PROP_PRESENT, &prop);
@@ -2335,7 +2341,7 @@ static int fg_check_full_status(struct sm_fg_chip *sm)
 	} else if (sm->batt_temp < SM5602_COLD_TEMP_TERM) {
 		interval = MONITOR_WORK_10S;
 	}
-	full_volt = get_effective_result(sm->fv_votable) / 1000 - 20;
+	full_volt = get_effective_result(sm->fv_votable) - 20;
 
 	rc = power_supply_get_property(sm->usb_psy,
 			POWER_SUPPLY_PROP_TERM_CURRENT, &prop);
@@ -2384,13 +2390,13 @@ static int fg_check_recharge_status(struct sm_fg_chip *sm)
 	if (!sm->chg_dis_votable)
 		sm->chg_dis_votable = find_votable("CHG_DISABLE");
 
-	rc = power_supply_get_property(sm->batt_psy,
+	/*rc = power_supply_get_property(sm->batt_psy,
 			POWER_SUPPLY_PROP_HEALTH, &prop);
 	if (rc < 0) {
 		pr_err("sm could not get batt healt, rc=%d\n", rc);
 		return rc;
 	}
-	sm->health = prop.intval;
+	sm->health = prop.intval;*/
 
 	rc = power_supply_get_property(sm->batt_psy,
 			POWER_SUPPLY_PROP_STATUS, &prop);
@@ -4095,7 +4101,7 @@ static int sm_fg_probe(struct i2c_client *client,
 	}
 
 	create_debugfs_entry(sm);
-	//fg_dump_debug(sm);
+	fg_show_registers(sm);
 
 	schedule_delayed_work(&sm->monitor_work, 10 * HZ);
 	//schedule_delayed_work(&sm->soc_monitor_work, msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
