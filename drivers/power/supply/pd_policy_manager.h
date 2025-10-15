@@ -30,6 +30,7 @@
 #define QUICK_RAISE_VOLT_INTERVAL_S	10 * MSEC_PER_SEC
 
 #define BQ_TAPER_FCC_VOTER	"BQ_TAPER_FCC_VOTER"
+#define JEITA_VOTER		"JEITA_VOTER"
 
 /*Thermal level 10 then it will limit current to 2A and CP should switch to buck-charger*/
 #define MAX_THERMAL_LEVEL_FOR_CP 10
@@ -176,6 +177,7 @@ struct usbpd_pm {
 	int apdo_max_curr;
 	int apdo_selected_pdo;
 
+	int pd_cv;
 	int adapter_voltage;
 	int adapter_current;
 	int adapter_ptf;
@@ -197,6 +199,7 @@ struct usbpd_pm {
 	struct power_supply *usb_psy;
 	struct power_supply *bms_psy;
 	struct votable *fcc_votable;
+	struct votable *fv_votable;
 
 	/* dtsi properties */
 	int bat_volt_max;

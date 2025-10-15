@@ -955,7 +955,7 @@ static int usbpd_pm_fc2_charge_algo(struct usbpd_pm *pdpm)
 	if (pdpm->cp.bat_ocp_alarm /*|| pdpm->cp.bat_ovp_alarm */
 		|| pdpm->cp.bus_ocp_alarm || pdpm->cp.bus_ovp_alarm)
 		//|| pdpm->cp.vbus_error_high || pdpm->cp_sec.vbus_error_high
-		/*|| pdpm->cp.tbat_temp > 60  || pdpm->cp.tbus_temp > 50)*/
+		/*|| pdpm->cp.tbat_temp > 60 || pdpm->cp.tbus_temp > 50)*/
 		hw_ctrl_steps = -pm_config.fc2_steps;
 	else
 		hw_ctrl_steps = pm_config.fc2_steps;
@@ -1051,9 +1051,42 @@ static void usbpd_pm_move_state(struct usbpd_pm *pdpm, enum pm_state state)
 	pdpm->state = state;
 }
 
+/* set jeita FV befor workaround */
+static int pd_set_cv(struct usbpd_pm *pdpm, int val)
+{
+	int last_pd_cv = 0;
+	int ret = 0;
+
+	if (!pdpm->fv_votable) {
+		pr_err("fv_votable is null!\n");
+		return -ENXIO;
+	}
+
+	last_pd_cv = get_effective_result(pdpm->fv_votable);
+	if (last_pd_cv < 0) {
+		pr_err("get_effective_result fail!\n");
+		return last_pd_cv;
+	}
+
+	pdpm->pd_cv = val;
+	pr_info("pd_cv: %d, last_pd_cv: %d\n", pdpm->pd_cv, last_pd_cv);
+
+	if (pdpm->pd_cv != last_pd_cv) {
+		ret = vote(pdpm->fv_votable, JEITA_VOTER, true, pdpm->pd_cv);
+		if (ret < 0) {
+			pr_err("set pd_cv to %d fail, ret=%d\n", pdpm->pd_cv, ret);
+			return ret;
+		}
+	} else {
+		pr_info("skip set, pd_cv: %d, last_pd_cv: %d\n", pdpm->pd_cv, last_pd_cv);
+	}
+
+	return 0;
+}
+
 static int usbpd_pm_sm(struct usbpd_pm *pdpm)
 {
-	int ret = 0, rc = 0, thermal_level = 0;
+	int ret = 0, rc = 0, thermal_level = 0, cv_val = 0;
 	static int tune_vbus_retry;
 	static bool stop_sw;
 	static bool recover;
@@ -1128,6 +1161,11 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
 		}
 		break;
 	case PD_PM_STATE_FC2_ENTRY_3:
+		cv_val = 4450;
+		ret = pd_set_cv(pdpm, cv_val);
+		if (ret < 0) {
+			pr_err("set pd_cv fail, ret: %d\n", ret);
+		}
 		usbpd_pm_check_cp_enabled(pdpm);
 		if (!pdpm->cp.charge_enabled) {
 			usbpd_pm_enable_cp(pdpm, true);
