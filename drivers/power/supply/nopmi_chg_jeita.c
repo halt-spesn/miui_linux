@@ -253,6 +253,7 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 	struct sw_jeita_data *sw_jeita = nopmi_chg_jeita->sw_jeita;
 	union power_supply_propval prop = {0, };
 	static int fast_charge_mode = 0;
+	static int batt_cap = 0;
 	struct power_supply *sc8551_psy;
 	union power_supply_propval pval = {0, };
 	int sc8551_charge_enable_flag = 0; //this flag used by jeta:nopmi_chg_jeita.c to set sw_chip fv && used by fg_chip do another soc
@@ -395,6 +396,17 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 		fast_charge_mode = prop.intval;
 	}
 
+	if (!nopmi_chg_jeita->batt_psy)
+		nopmi_chg_jeita->batt_psy = power_supply_get_by_name("battery");
+	if (nopmi_chg_jeita->batt_psy) {
+		ret = power_supply_get_property(nopmi_chg_jeita->batt_psy,
+				POWER_SUPPLY_PROP_CAPACITY, &prop);
+		if (ret < 0) {
+			pr_err("get batt cap fail\n");
+		}
+		batt_cap = prop.intval;
+	}
+
 	if (!g_ffc_disable && fast_charge_mode && (sw_jeita->sm != TEMP_T2_TO_T3)) {
 		prop.intval = 0;
 		fast_charge_mode = 0;
@@ -430,14 +442,16 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 		else
 			sw_jeita->cv = nopmi_chg_jeita->dt.normal_charge_voltage;
 	} else {
-			sw_jeita->cv = nopmi_chg_jeita->dt.normal_charge_voltage;
-			if (fast_charge_mode && !g_ffc_disable) {
-				if (NOPMI_CHARGER_IC_MAXIM == nopmi_get_charger_ic_type()) {
-					sw_jeita->cv = 4470;
-				} else {
-					sw_jeita->cv = 4480;
-				}
+		sw_jeita->cv = nopmi_chg_jeita->dt.normal_charge_voltage;
+		if (fast_charge_mode && !g_ffc_disable && batt_cap < 95) {
+			if (NOPMI_CHARGER_IC_MAXIM == nopmi_get_charger_ic_type()) {
+				sw_jeita->cv = 4470;
+			} else {
+				sw_jeita->cv = 4480;
 			}
+		} else {
+			sw_jeita->cv = 4450;
+		}
 	}
 
 	sc8551_psy = power_supply_get_by_name("sc8551-standalone");
@@ -454,15 +468,20 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 		pr_err("bq2589x_charger: sc8551_psy = power_supply_get_by_name(sc8551-standalone) error.\n");
 	}
 
-	if (sc8551_charge_enable_flag) {
+	if (sc8551_charge_enable_flag && batt_cap < 95) {
 		if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
 			pr_info("bq2589x_charger: sc8551_psy: sw_jeita->cv = 4608.\n");
 			sw_jeita->cv = 4608;
 		}
+	} else {
+		if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
+			pr_info("bq2589x_charger: sc8551_psy: charge_full, set normal_cv\n");
+			sw_jeita->cv = 4450;
+		}
 	}
 
 	if (nopmi_chg_jeita->fv_votable) {
-		chg1_cv =  get_effective_result(nopmi_chg_jeita->fv_votable);
+		chg1_cv = get_effective_result(nopmi_chg_jeita->fv_votable);
 	} else {
 		chg1_cv = nopmi_chg_jeita_get_charger_voltage(nopmi_chg_jeita);
 	}
@@ -606,6 +625,10 @@ static int nopmi_chg_jeita_get_psy(struct nopmi_chg_jeita_st *nopmi_chg_jeita)
 	if (!nopmi_chg_jeita->bms_psy)
 		pr_warn("bms psy not ready, get it later!\n");
 
+	nopmi_chg_jeita->batt_psy = power_supply_get_by_name("battery");
+	if (!nopmi_chg_jeita->bms_psy)
+		pr_warn("batt psy not ready, get it later!\n");
+
 	nopmi_chg_jeita->bbc_psy = power_supply_get_by_name("bbc");
 	if (!nopmi_chg_jeita->bbc_psy)
 		pr_warn("bbc psy not ready, get it later!\n");
@@ -621,6 +644,8 @@ static void nopmi_chg_jeita_release_psy(struct nopmi_chg_jeita_st *nopmi_chg_jei
 {
 	if (nopmi_chg_jeita->bms_psy)
 		power_supply_put(nopmi_chg_jeita->bms_psy);
+	if (nopmi_chg_jeita->batt_psy)
+		power_supply_put(nopmi_chg_jeita->batt_psy);
 	if (nopmi_chg_jeita->bbc_psy)
 		power_supply_put(nopmi_chg_jeita->bbc_psy);
 	if (nopmi_chg_jeita->usb_psy)
@@ -645,9 +670,12 @@ int nopmi_chg_jeita_init(struct nopmi_chg_jeita_st *nopmi_chg_jeita)
 	nopmi_chg_jeita->fcc_votable = find_votable("FCC");
 	nopmi_chg_jeita->fv_votable = find_votable("FV");
 	nopmi_chg_jeita->usb_icl_votable = find_votable("USB_ICL");
-	nopmi_chg_jeita->chgctrl_votable = find_votable("CHG_CTRL");
+	if (NOPMI_CHARGER_IC_MAXIM == nopmi_get_charger_ic_type()) {
+		// only related with maxim chip
+		nopmi_chg_jeita->chgctrl_votable = find_votable("CHG_CTRL");
+	}
 	nopmi_chg_jeita_state_init(nopmi_chg_jeita);
-	if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()){
+	if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
 		nopmi_chg_jeita->battery_id = nopmi_chg_jeita_get_batt_id(nopmi_chg_jeita);
 	}
 

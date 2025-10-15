@@ -112,6 +112,7 @@ struct nopmi_chg_jeita_st {
 	struct nopmi_chg_jeita_config dt;
 	struct delayed_work jeita_work;
 	struct power_supply *bms_psy;
+	struct power_supply *batt_psy;
 	struct power_supply *bbc_psy;
 	struct power_supply *usb_psy;
 
@@ -126,7 +127,7 @@ enum charge_mode {
 	CHG_MODE_CHARGING_OFF, /*chg off */
 	CHG_MODE_CHARGING, /* buck, chg on */
 	CHG_MODE_MAX,
-  };
+};
 
 void start_nopmi_chg_jeita_workfunc(void);
 void stop_nopmi_chg_jeita_workfunc(void);
