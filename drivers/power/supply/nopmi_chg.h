@@ -56,6 +56,8 @@ struct nopmi_chg {
 	struct votable *fcc_votable;
 	struct votable *fv_votable;
 	struct votable *usb_icl_votable;
+	struct votable *chgctrl_votable;
+	struct votable *chg_dis_votable;
 #endif
 	struct nopmi_dt_props dt;
 	struct delayed_work nopmi_chg_work;
