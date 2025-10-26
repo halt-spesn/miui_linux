@@ -1701,7 +1701,8 @@ static int fts_set_cur_value(int fts_mode, int fts_value)
 	uint8_t reg_value = 0;
 
 	if (fts_mode == Touch_Doubletap_Mode && fts_value >= 0) {
-		fts_data->gesture_mode = fts_value;
+		/* Force gesture mode to always be enabled */
+		fts_data->gesture_mode = ENABLE;
 		return 0;
 	}
 
