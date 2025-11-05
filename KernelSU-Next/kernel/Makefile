@@ -21,7 +21,7 @@ KSU_VERSION_TAG := $(shell cd $(srctree)/$(src); /usr/bin/env PATH="$$PATH":/usr
 $(info -- KernelSU-Next tag: $(KSU_VERSION_TAG))
 ccflags-y += -DKSU_VERSION_TAG=\"$(KSU_VERSION_TAG)\"
 else
-$(warning "KSU_VERSION_TAG not defined! It is better to make KernelSU-Next a git submodule!")
+#$(warning "KSU_VERSION_TAG not defined! It is better to make KernelSU-Next a git submodule!")
 ccflags-y += -DKSU_VERSION_TAG=\"v0.0.0\"
 endif
 
@@ -34,7 +34,7 @@ $(eval KSU_VERSION=$(shell expr 10000 + $(KSU_GIT_VERSION) + 200))
 $(info -- KernelSU-Next version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 else # If there is no .git file, the default version will be passed.
-$(warning "KSU_GIT_VERSION not defined! It is better to make KernelSU-Next a git submodule!")
+#$(warning "KSU_GIT_VERSION not defined! It is better to make KernelSU-Next a git submodule!")
 ccflags-y += -DKSU_VERSION=12851
 endif
 
