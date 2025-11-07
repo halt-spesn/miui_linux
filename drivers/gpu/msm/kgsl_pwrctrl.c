@@ -1978,8 +1978,11 @@ static void kgsl_thermal_cycle(struct work_struct *work)
 
 static void kgsl_thermal_timer(struct timer_list *t)
 {
-	struct kgsl_pwrctrl *pwr = from_timer(pwr, t, thermal_timer);
-	struct kgsl_device *device = container_of(pwr,
+	struct kgsl_pwrctrl *pwr;
+	struct kgsl_device *device;
+
+	pwr = from_timer(pwr, t, thermal_timer);
+	device = container_of(pwr,
 					struct kgsl_device, pwrctrl);
 
 	/* Keep the timer running consistently despite processing time */
@@ -2572,7 +2575,9 @@ EXPORT_SYMBOL(kgsl_idle_check);
 
 void kgsl_timer(struct timer_list *t)
 {
-	struct kgsl_device *device = from_timer(device, t, idle_timer);
+	struct kgsl_device *device;
+
+	device = from_timer(device, t, idle_timer);
 
 	if (device->requested_state != KGSL_STATE_SUSPEND) {
 		kgsl_pwrctrl_request_state(device, KGSL_STATE_SLUMBER);
