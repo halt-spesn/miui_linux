@@ -4629,13 +4629,6 @@ static int _sde_crtc_check_get_pstates(struct drm_crtc *crtc,
 				pstates[*cnt].sde_pstate, PLANE_PROP_ZPOS);
 		pstates[*cnt].pipe_id = sde_plane_pipe(plane);
 
-		/* Validate pipe_id is within valid range */
-		if (pstates[*cnt].pipe_id >= SSPP_MAX) {
-			SDE_ERROR("invalid pipe_id %d for plane:%d\n",
-				pstates[*cnt].pipe_id, plane->base.id);
-			return -EINVAL;
-		}
-
 		if (!kms->catalog->has_base_layer)
 			inc_sde_stage = SDE_STAGE_0;
 

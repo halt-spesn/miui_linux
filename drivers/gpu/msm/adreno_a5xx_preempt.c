@@ -152,11 +152,8 @@ static void _a5xx_preemption_worker(struct work_struct *work)
 
 static void _a5xx_preemption_timer(struct timer_list *t)
 {
-	struct adreno_preemption *preempt;
-	struct adreno_device *adreno_dev;
-
-	preempt = from_timer(preempt, t, timer);
-	adreno_dev = container_of(preempt,
+	struct adreno_preemption *preempt = from_timer(preempt, t, timer);
+	struct adreno_device *adreno_dev = container_of(preempt,
 						struct adreno_device, preempt);
 
 	/* We should only be here from a triggered state */

@@ -2646,12 +2646,10 @@ void adreno_dispatcher_queue_context(struct kgsl_device *device,
 
 static void adreno_dispatcher_fault_timer(struct timer_list *t)
 {
-	struct adreno_dispatcher *dispatcher;
-	struct adreno_device *adreno_dev;
-
-	dispatcher = from_timer(dispatcher, t, fault_timer);
-	adreno_dev = container_of(dispatcher,
-				struct adreno_device, dispatcher);
+	struct adreno_dispatcher *dispatcher = from_timer(dispatcher,
+							t, fault_timer);
+	struct adreno_device *adreno_dev = container_of(dispatcher,
+					struct adreno_device, dispatcher);
 
 	/* Leave if the user decided to turn off fast hang detection */
 	if (!adreno_soft_fault_detect(adreno_dev))
@@ -2682,11 +2680,8 @@ static void adreno_dispatcher_fault_timer(struct timer_list *t)
  */
 static void adreno_dispatcher_timer(struct timer_list *t)
 {
-	struct adreno_dispatcher *dispatcher;
-	struct adreno_device *adreno_dev;
-
-	dispatcher = from_timer(dispatcher, t, timer);
-	adreno_dev = container_of(dispatcher,
+	struct adreno_dispatcher *dispatcher = from_timer(dispatcher, t, timer);
+	struct adreno_device *adreno_dev = container_of(dispatcher,
 					struct adreno_device, dispatcher);
 
 	adreno_dispatcher_schedule(KGSL_DEVICE(adreno_dev));
