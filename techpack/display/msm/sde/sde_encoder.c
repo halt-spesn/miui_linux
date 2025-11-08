@@ -4978,7 +4978,7 @@ static int _sde_encoder_reset_ctl_hw(struct drm_encoder *drm_enc)
 
 void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error)
 {
-     //   static bool first_run = true;
+        static bool first_run = true;
 	struct sde_encoder_virt *sde_enc;
 	struct sde_encoder_phys *phys;
 	ktime_t wakeup_time;
@@ -5031,7 +5031,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error)
 	/*
 	 * Trigger a panel reset if this is the first kickoff
 	 */
-	/*if (cmpxchg(&first_run, true, false)) {
+	if (cmpxchg(&first_run, true, false)) {
 		struct sde_connector *conn = container_of(phys->connector, struct sde_connector, base);
 		struct drm_event event = {
 			.type = DRM_EVENT_PANEL_DEAD,
@@ -5042,7 +5042,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error)
 		event.length = sizeof(bool);
 		msm_mode_object_event_notify(&conn->base.base,
 			conn->base.dev, &event, (u8 *) &conn->panel_dead);
-	}*/
+	}
 
 	SDE_ATRACE_END("encoder_kickoff");
 }
