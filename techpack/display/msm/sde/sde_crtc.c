@@ -4659,11 +4659,7 @@ static int _sde_crtc_check_get_pstates(struct drm_crtc *crtc,
 
 			pipe_staged[pstates[*cnt].pipe_id] = NULL;
 		} else {
-			/* Skip adding virtual planes to pipe_staged to avoid
-			 * r1-only virtual plane error in multirect validation
-			 */
-			if (!is_sde_plane_virtual(plane))
-				pipe_staged[pstates[*cnt].pipe_id] = pstate;
+			pipe_staged[pstates[*cnt].pipe_id] = pstate;
 		}
 
 		(*cnt)++;
