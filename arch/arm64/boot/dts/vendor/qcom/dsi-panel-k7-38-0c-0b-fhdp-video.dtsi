@@ -47,7 +47,7 @@ dsi_k7_38_0c_0b_video:
 		qcom,mdss-dsi-te-using-te-pin;
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode_vfp";
-		qcom,dsi-supported-dfps-list = <90 60 30>;
+		qcom,dsi-supported-dfps-list = <90 60>;
 		qcom,esd-err-irq-gpio = <&tlmm 99 0x2001>;
 		qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 		qcom,mdss-dsi-panel-status-command = <0x6010001 0x10a>;
