@@ -105,14 +105,17 @@ slow:
 void *ns_get_path_cb(struct path *path, ns_get_path_helper_t *ns_get_cb,
 		     void *private_data)
 {
+	struct ns_common *ns;
 	void *ret;
 
-	do {
-		struct ns_common *ns = ns_get_cb(private_data);
-		if (!ns)
-			return ERR_PTR(-ENOENT);
-		ret = __ns_get_path(path, ns);
-	} while (ret == ERR_PTR(-EAGAIN));
+again:
+	ns = ns_get_cb(private_data);
+	if (!ns)
+		return ERR_PTR(-ENOENT);
+
+	ret = __ns_get_path(path, ns);
+	if (IS_ERR(ret) && PTR_ERR(ret) == -EAGAIN)
+		goto again;
 	return ret;
 }
 
@@ -151,7 +154,7 @@ int open_related_ns(struct ns_common *ns,
 	if (fd < 0)
 		return fd;
 
-	do {
+	while (1) {
 		struct ns_common *relative;
 
 		relative = get_ns(ns);
@@ -161,8 +164,10 @@ int open_related_ns(struct ns_common *ns,
 		}
 
 		err = __ns_get_path(&path, relative);
-	} while (err == ERR_PTR(-EAGAIN));
-
+		if (IS_ERR(err) && PTR_ERR(err) == -EAGAIN)
+			continue;
+		break;
+	}
 	if (IS_ERR(err)) {
 		put_unused_fd(fd);
 		return PTR_ERR(err);
