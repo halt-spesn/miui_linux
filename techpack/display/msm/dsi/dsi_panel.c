@@ -12,6 +12,7 @@
 #include <video/mipi_display.h>
 
 #include "dsi_panel.h"
+#include "dsi_display.h"
 #include "dsi_ctrl_hw.h"
 #include "dsi_parser.h"
 #include "sde_dbg.h"
@@ -754,51 +755,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-int dsi_panel_update_doze(struct dsi_panel *panel) {
-	int rc = 0;
-
-	if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_HBM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
-		if (rc)
-			DSI_ERR("[%s] failed to send DSI_CMD_SET_DOZE_HBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_LPM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
-		if (rc)
-			DSI_ERR("[%s] failed to send DSI_CMD_SET_DOZE_LBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (!panel->doze_enabled) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
-		if (rc)
-			DSI_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
-					panel->name, rc);
-	}
-
-	return rc;
-}
-
-int dsi_panel_set_doze_status(struct dsi_panel *panel, bool status) {
-	if (panel->doze_enabled == status)
-		return 0;
-
-	panel->doze_enabled = status;
-
-	return dsi_panel_update_doze(panel);
-}
-
-int dsi_panel_set_doze_mode(struct dsi_panel *panel, enum dsi_doze_mode_type mode) {
-	if (panel->doze_mode == mode)
-		return 0;
-
-	panel->doze_mode = mode;
-
-	if (!panel->doze_enabled)
-		return 0;
-
-	return dsi_panel_update_doze(panel);
-}
-#endif
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
@@ -3586,11 +3542,6 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		DSI_DEBUG("failed to parse esd config, rc=%d\n", rc);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-	panel->doze_mode = DSI_DOZE_LPM;
-	panel->doze_enabled = false;
-#endif
-
 	panel->power_mode = SDE_MODE_DPMS_OFF;
 	drm_panel_init(&panel->drm_panel);
 	panel->drm_panel.dev = &panel->mipi_device.dev;
@@ -4248,11 +4199,7 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-	rc = dsi_panel_set_doze_status(panel, true);
-	if (rc)
-		DSI_ERR("unable to set doze on\n");
-#endif
+
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4276,11 +4223,7 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-	rc = dsi_panel_set_doze_status(panel, true);
-	if (rc)
-		DSI_ERR("unable to set doze on\n");
-#endif
+
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4304,11 +4247,6 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-	rc = dsi_panel_set_doze_status(panel, false);
-	if (rc)
-		DSI_ERR("unable to set doze off\n");
-#endif
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4735,9 +4673,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
-#ifdef CONFIG_TARGET_PROJECT_K7T
-	panel->doze_enabled = false;
-#endif
+
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4912,4 +4848,88 @@ static void __exit dsi_panel_dc_dim_exit(void)
 
 module_init(dsi_panel_dc_dim_init);
 module_exit(dsi_panel_dc_dim_exit);
+#endif
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
+int dsi_panel_set_doze_backlight(struct dsi_display *display)
+{
+	struct dsi_panel *panel;
+	struct drm_device *drm_dev;
+	int rc = 0;
+	int doze_brightness;
+
+	if (!display || !display->panel || !display->drm_dev)
+		return -EINVAL;
+
+	panel = display->panel;
+	drm_dev = display->drm_dev;
+
+	mutex_lock(&panel->panel_lock);
+	if (panel->panel_initialized) {
+		doze_brightness = drm_dev->doze_brightness;
+		DSI_INFO("[msm-dsi-info]: doze_state = %d, doze_brightness = %d\n",
+				drm_dev->doze_state, doze_brightness);
+
+		if (doze_brightness == 2) {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
+			if (rc)
+				DSI_ERR("[%s] failed to set doze LBM, rc=%d\n", panel->name, rc);
+			else
+				DSI_INFO("DsiPanelSetDoz %d\n", doze_brightness);
+		} else if (doze_brightness == 1) {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
+			if (rc) {
+				DSI_ERR("[%s] failed to set doze HBM, rc=%d\n", panel->name, rc);
+				panel->in_aod = 1;
+			} else {
+				DSI_INFO("DsiPanelSetDoz %d\n", doze_brightness);
+			}
+		} else {
+             /* 
+              * In the RE code: 
+              * drm_dev->doze_brightness = 0; 
+              * printk(..., 0);
+              */
+			drm_dev->doze_brightness = 0;
+			DSI_INFO("DsiPanelSetDoz %d\n", 0);
+		}
+	} else {
+		DSI_ERR("[%s] set doze backlight before panel initialized!\n", display->name);
+	}
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf)
+{
+	struct dsi_panel *panel;
+	struct drm_device *drm_dev;
+	int ret;
+
+	if (!display || !display->panel || !display->drm_dev)
+		return -EINVAL;
+
+	panel = display->panel;
+	drm_dev = display->drm_dev;
+
+	mutex_lock(&panel->panel_lock);
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", drm_dev->doze_brightness);
+	DSI_INFO("DsiPanelGetDoz %d\n", drm_dev->doze_brightness);
+	mutex_unlock(&panel->panel_lock);
+	return ret;
+}
+
+int dsi_panel_disp_param_send(struct dsi_display *display, int cmd)
+{
+	if (!display || !display->panel)
+		return -EINVAL;
+
+	return dsi_panel_tx_cmd_set(display->panel, cmd);
+}
+
+ssize_t dsi_panel_disp_param_get(struct dsi_display *display, char *buf)
+{
+    // Stub implementation based on missing RE details
+    return 0;
+}
 #endif

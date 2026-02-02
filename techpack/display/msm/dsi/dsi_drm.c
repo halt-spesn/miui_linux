@@ -631,6 +631,28 @@ int dsi_conn_get_mode_info(struct drm_connector *connector,
 	return 0;
 }
 
+#ifdef CONFIG_TARGET_PROJECT_K7T
+static void dsi_bridge_disp_param_set(struct drm_bridge *bridge, int cmd)
+{
+	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!c_bridge || !c_bridge->display)
+		return;
+
+	dsi_panel_disp_param_send(c_bridge->display, cmd);
+}
+
+static ssize_t dsi_bridge_disp_param_get(struct drm_bridge *bridge, char *buf)
+{
+	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!c_bridge || !c_bridge->display)
+		return 0;
+
+	return dsi_panel_disp_param_get(c_bridge->display, buf);
+}
+#endif
+
 static const struct drm_bridge_funcs dsi_bridge_ops = {
 	.attach       = dsi_bridge_attach,
 	.mode_fixup   = dsi_bridge_mode_fixup,
@@ -640,6 +662,10 @@ static const struct drm_bridge_funcs dsi_bridge_ops = {
 	.post_disable = dsi_bridge_post_disable,
 	.mode_set     = dsi_bridge_mode_set,
 	.disp_get_panel_info = dsi_bridge_get_panel_info,
+#ifdef CONFIG_TARGET_PROJECT_K7T
+	.disp_param_set = dsi_bridge_disp_param_set,
+	.disp_param_get = dsi_bridge_disp_param_get,
+#endif
 };
 
 int dsi_conn_set_info_blob(struct drm_connector *connector,
@@ -1174,3 +1200,50 @@ void dsi_drm_bridge_cleanup(struct dsi_bridge *bridge)
 
 	kfree(bridge);
 }
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
+int dsi_bridge_disp_set_doze_backlight(struct drm_connector *connector, int doze_backlight)
+{
+	struct dsi_bridge *c_bridge;
+	struct drm_encoder *encoder;
+	struct drm_bridge *bridge;
+
+	if (!connector || !connector->encoder)
+		return -EINVAL;
+
+	encoder = connector->encoder;
+	bridge = encoder->bridge;
+	if (!bridge)
+		return -EINVAL;
+
+	c_bridge = to_dsi_bridge(bridge);
+	if (!c_bridge || !c_bridge->display)
+		return -EINVAL;
+
+	if (c_bridge->display->drm_dev)
+		c_bridge->display->drm_dev->doze_brightness = doze_backlight;
+
+	return dsi_panel_set_doze_backlight(c_bridge->display);
+}
+
+ssize_t dsi_bridge_disp_get_doze_backlight(struct drm_connector *connector, char *buf)
+{
+	struct dsi_bridge *c_bridge;
+	struct drm_encoder *encoder;
+	struct drm_bridge *bridge;
+
+	if (!connector || !connector->encoder)
+		return -EINVAL;
+
+	encoder = connector->encoder;
+	bridge = encoder->bridge;
+	if (!bridge)
+		return -EINVAL;
+
+	c_bridge = to_dsi_bridge(bridge);
+	if (!c_bridge || !c_bridge->display)
+		return -EINVAL;
+
+	return dsi_panel_get_doze_backlight(c_bridge->display, buf);
+}
+#endif

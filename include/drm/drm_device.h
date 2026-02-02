@@ -222,6 +222,7 @@ struct drm_device {
 	/*add for thermal begin*/
 	int doze_state;
 	int pre_state;
+	int doze_brightness;
 	/*add for thermal end*/
 
 	/**

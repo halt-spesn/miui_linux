@@ -21,6 +21,8 @@
 #include "dsi_parser.h"
 #include "msm_drv.h"
 
+struct dsi_display;
+
 #define MAX_BL_LEVEL 4096
 #define MAX_BL_SCALE_LEVEL 1024
 #define MAX_SV_BL_SCALE_LEVEL 65535
@@ -51,12 +53,6 @@ enum dsi_backlight_type {
 	DSI_BACKLIGHT_MAX,
 };
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
-enum dsi_doze_mode_type {
-	DSI_DOZE_LPM = 0,
-	DSI_DOZE_HBM,
-};
-#endif
 
 enum bl_update_flag {
 	BL_UPDATE_DELAY_UNTIL_FIRST_FRAME,
@@ -231,14 +227,13 @@ struct dsi_panel {
 	enum dsi_dms_mode dms_mode;
 
 	bool sync_broadcast_en;
+	bool in_aod;
 
 	int panel_test_gpio;
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
 
 #ifdef CONFIG_TARGET_PROJECT_K7T
-	bool doze_enabled;
-	enum dsi_doze_mode_type doze_mode;
 	u32 dsi_refresh_flag;
 #endif
     int hbm_mode;
@@ -363,12 +358,12 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 		struct dsi_display_mode *mode, u32 frame_threshold_us);
 
 #ifdef CONFIG_TARGET_PROJECT_K7T
-int dsi_panel_set_doze_status(struct dsi_panel *panel, bool status);
-int dsi_panel_set_doze_mode(struct dsi_panel *panel, enum dsi_doze_mode_type mode);
-
 void dsi_set_backlight_control(struct dsi_panel *panel,
 			 struct dsi_display_mode *adj_mode);
-
+int dsi_panel_set_doze_backlight(struct dsi_display *display);
+int dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf);
+int dsi_panel_disp_param_send(struct dsi_display *display, int cmd);
+ssize_t dsi_panel_disp_param_get(struct dsi_display *display, char *buf);
 #endif
 
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel);
