@@ -396,6 +396,10 @@ static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_dpms.attr,
 	&dev_attr_modes.attr,
 	&dev_attr_panel_info.attr,
+	&dev_attr_mipi_reg.attr,
+	&dev_attr_doze_brightness.attr,
+	&dev_attr_doze_backlight.attr,
+	&dev_attr_disp_param.attr,
 	NULL
 };
 

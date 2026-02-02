@@ -1247,3 +1247,49 @@ ssize_t dsi_bridge_disp_get_doze_backlight(struct drm_connector *connector, char
 	return dsi_panel_get_doze_backlight(c_bridge->display, buf);
 }
 #endif
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
+ssize_t dsi_display_mipi_reg_write(struct drm_connector *connector, char *buf, size_t count)
+{
+    struct drm_encoder *encoder;
+    struct drm_bridge *bridge;
+    struct dsi_bridge *c_bridge;
+
+    if (!connector || !connector->encoder)
+        return -EINVAL;
+
+    encoder = connector->encoder;
+    bridge = encoder->bridge;
+    if (!bridge)
+         return -EINVAL;
+
+    c_bridge = to_dsi_bridge(bridge);
+    if (!c_bridge || !c_bridge->display || !c_bridge->display->panel)
+        return -EINVAL;
+
+    return dsi_panel_mipi_reg_write(c_bridge->display->panel, buf, count);
+}
+EXPORT_SYMBOL(dsi_display_mipi_reg_write);
+
+ssize_t dsi_display_mipi_reg_read(struct drm_connector *connector, char *buf)
+{
+    struct drm_encoder *encoder;
+    struct drm_bridge *bridge;
+    struct dsi_bridge *c_bridge;
+
+    if (!connector || !connector->encoder)
+        return -EINVAL;
+
+    encoder = connector->encoder;
+    bridge = encoder->bridge;
+    if (!bridge)
+         return -EINVAL;
+
+    c_bridge = to_dsi_bridge(bridge);
+    if (!c_bridge || !c_bridge->display || !c_bridge->display->panel)
+        return -EINVAL;
+
+    return dsi_panel_mipi_reg_read(c_bridge->display->panel, buf);
+}
+EXPORT_SYMBOL(dsi_display_mipi_reg_read);
+#endif

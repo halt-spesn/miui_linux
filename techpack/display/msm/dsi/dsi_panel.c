@@ -9,6 +9,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/pwm.h>
+#include <linux/ctype.h>
 #include <video/mipi_display.h>
 
 #include "dsi_panel.h"
@@ -4184,6 +4185,7 @@ error:
 int dsi_panel_set_lp1(struct dsi_panel *panel)
 {
 	int rc = 0;
+	int doze_brightness;
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -4194,11 +4196,33 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 	if (!panel->panel_initialized)
 		goto exit;
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP1);
-	if (rc)
-		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
-		       panel->name, rc);
-
+	/*
+	 * For this panel, LP1 mode IS the doze mode.
+	 * Send the appropriate doze brightness command based on doze_brightness.
+	 * doze_brightness: 1 = HBM (high brightness), 2 = LBM (low brightness)
+	 */
+	doze_brightness = panel->doze_brightness;
+	DSI_INFO("LP1: panel->doze_brightness = %d\n", doze_brightness);
+	
+	if (doze_brightness == 1) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
+		if (rc)
+			DSI_ERR("[%s] failed to set doze HBM, rc=%d\n", panel->name, rc);
+		else
+			DSI_INFO("[%s] sent DOZE_HBM command successfully\n", panel->name);
+	} else if (doze_brightness == 2) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
+		if (rc)
+			DSI_ERR("[%s] failed to set doze LBM, rc=%d\n", panel->name, rc);
+		else
+			DSI_INFO("[%s] sent DOZE_LBM command successfully\n", panel->name);
+	} else {
+		/* No doze brightness set, send LP1 if available */
+		DSI_INFO("[%s] doze_brightness=0, sending LP1 command\n", panel->name);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP1);
+		if (rc)
+			DSI_ERR("[%s] failed to send LP1 cmd, rc=%d\n", panel->name, rc);
+	}
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4208,6 +4232,7 @@ exit:
 int dsi_panel_set_lp2(struct dsi_panel *panel)
 {
 	int rc = 0;
+	int doze_brightness;
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -4218,11 +4243,31 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 	if (!panel->panel_initialized)
 		goto exit;
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP2);
-	if (rc)
-		DSI_ERR("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
-		       panel->name, rc);
-
+	/*
+	 * For this panel, LP2 mode IS the doze mode.
+	 * Send the appropriate doze brightness command based on doze_brightness.
+	 */
+	doze_brightness = panel->doze_brightness;
+	DSI_INFO("LP2: panel->doze_brightness = %d\n", doze_brightness);
+	
+	if (doze_brightness == 1) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
+		if (rc)
+			DSI_ERR("[%s] failed to set doze HBM, rc=%d\n", panel->name, rc);
+		else
+			DSI_INFO("[%s] sent DOZE_HBM command successfully\n", panel->name);
+	} else if (doze_brightness == 2) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
+		if (rc)
+			DSI_ERR("[%s] failed to set doze LBM, rc=%d\n", panel->name, rc);
+		else
+			DSI_INFO("[%s] sent DOZE_LBM command successfully\n", panel->name);
+	} else {
+		DSI_INFO("[%s] doze_brightness=0, sending LP2 command\n", panel->name);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP2);
+		if (rc)
+			DSI_ERR("[%s] failed to send LP2 cmd, rc=%d\n", panel->name, rc);
+	}
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4242,10 +4287,15 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 	if (!panel->panel_initialized)
 		goto exit;
 
+	/* Reset AOD state when exiting low power mode */
+	panel->in_aod = 0;
+
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
+	else
+		DSI_INFO("[%s] exiting low power mode\n", panel->name);
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4673,6 +4723,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
+	panel->in_aod = 0;
 
 
 	mutex_unlock(&panel->panel_lock);
@@ -4867,6 +4918,9 @@ int dsi_panel_set_doze_backlight(struct dsi_display *display)
 	mutex_lock(&panel->panel_lock);
 	if (panel->panel_initialized) {
 		doze_brightness = drm_dev->doze_brightness;
+		/* Also store in panel for LP1/LP2 functions to use */
+		panel->doze_brightness = doze_brightness;
+		
 		DSI_INFO("[msm-dsi-info]: doze_state = %d, doze_brightness = %d\n",
 				drm_dev->doze_state, doze_brightness);
 
@@ -4876,14 +4930,14 @@ int dsi_panel_set_doze_backlight(struct dsi_display *display)
 				DSI_ERR("[%s] failed to set doze LBM, rc=%d\n", panel->name, rc);
 			else
 				DSI_INFO("DsiPanelSetDoz %d\n", doze_brightness);
+			panel->in_aod = 1;
 		} else if (doze_brightness == 1) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
-			if (rc) {
+			if (rc)
 				DSI_ERR("[%s] failed to set doze HBM, rc=%d\n", panel->name, rc);
-				panel->in_aod = 1;
-			} else {
+			else
 				DSI_INFO("DsiPanelSetDoz %d\n", doze_brightness);
-			}
+			panel->in_aod = 1;
 		} else {
              /* 
               * In the RE code: 
@@ -4891,6 +4945,8 @@ int dsi_panel_set_doze_backlight(struct dsi_display *display)
               * printk(..., 0);
               */
 			drm_dev->doze_brightness = 0;
+			panel->doze_brightness = 0;
+			panel->in_aod = 0;
 			DSI_INFO("DsiPanelSetDoz %d\n", 0);
 		}
 	} else {
@@ -4931,5 +4987,70 @@ ssize_t dsi_panel_disp_param_get(struct dsi_display *display, char *buf)
 {
     // Stub implementation based on missing RE details
     return 0;
+}
+#endif
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
+ssize_t dsi_panel_mipi_reg_write(struct dsi_panel *panel, char *buf, size_t count)
+{
+	char *payload;
+	struct mipi_dsi_msg msg = {0};
+	int rc = 0;
+	u32 value;
+	char *pos = buf;
+	int len = 0;
+	
+	if (!panel || !panel->host || !panel->host->ops)
+		return -EINVAL;
+
+	/* Estimate max possible bytes */
+	payload = kzalloc(count, GFP_KERNEL);
+	if (!payload)
+		return -ENOMEM;
+	
+	while (pos < buf + count) {
+		/* skip whitespace */
+		while (pos < buf + count && (*pos == ' ' || *pos == '\n' || *pos == '\t'))
+			pos++;
+		
+		if (pos >= buf + count || *pos == 0)
+			break;
+
+		if (sscanf(pos, "%x", &value) != 1)
+			break;
+		
+		payload[len++] = (char)value;
+		
+		/* skip current hex number */
+		while (pos < buf + count && (isalnum(*pos)))
+			pos++;
+	}
+
+	if (len < 1) {
+		kfree(payload);
+		return -EINVAL;
+	}
+
+	/* First byte is DSI data type */
+	msg.type = payload[0];
+	msg.channel = panel->mipi_device.channel;
+	msg.tx_buf = payload + 1;
+	msg.tx_len = len - 1;
+	msg.flags = MIPI_DSI_MSG_USE_LPM;
+
+	rc = panel->host->ops->transfer(panel->host, &msg);
+	
+	kfree(payload);
+	
+	if (rc < 0)
+		return rc;
+		
+	return count;
+}
+
+ssize_t dsi_panel_mipi_reg_read(struct dsi_panel *panel, char *buf)
+{
+	/* Stub for read, as we don't know what register to read without input */
+	return 0;
 }
 #endif

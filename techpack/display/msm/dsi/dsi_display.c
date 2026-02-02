@@ -1080,15 +1080,27 @@ int dsi_display_set_power(struct drm_connector *connector,
 		DSI_DEBUG("SDE_MODE_DPMS_LP1\n");
 		event = DRM_BLANK_POWERDOWN;
 		g_notify_data.data = &event;
+		/* Pass doze_brightness to panel before LP1 */
+		display->panel->doze_brightness = dev->doze_brightness;
+		DSI_INFO("LP1: setting panel doze_brightness=%d from dev->doze_brightness\n",
+			 dev->doze_brightness);
 		drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 		rc = dsi_panel_set_lp1(display->panel);
 		if (!rc)
-		drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
+			drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
+		/* Call doze backlight like stock kernel does after LP1 */
+		dsi_panel_set_doze_backlight(display);
 		break;
 	case SDE_MODE_DPMS_LP2:
+		/* Pass doze_brightness to panel before LP2 */
+		display->panel->doze_brightness = dev->doze_brightness;
+		DSI_INFO("LP2: setting panel doze_brightness=%d from dev->doze_brightness\n",
+			 dev->doze_brightness);
 		drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 		rc = dsi_panel_set_lp2(display->panel);
 		drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
+		/* Call doze backlight like stock kernel does after LP2 */
+		dsi_panel_set_doze_backlight(display);
 		break;
 	case SDE_MODE_DPMS_ON:
 		if ((display->panel->power_mode == SDE_MODE_DPMS_LP1) ||

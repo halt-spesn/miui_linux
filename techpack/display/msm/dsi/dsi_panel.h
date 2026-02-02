@@ -228,6 +228,7 @@ struct dsi_panel {
 
 	bool sync_broadcast_en;
 	bool in_aod;
+	int doze_brightness;  /* 0=none, 1=HBM, 2=LBM */
 
 	int panel_test_gpio;
 	int power_mode;
@@ -364,6 +365,8 @@ int dsi_panel_set_doze_backlight(struct dsi_display *display);
 int dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf);
 int dsi_panel_disp_param_send(struct dsi_display *display, int cmd);
 ssize_t dsi_panel_disp_param_get(struct dsi_display *display, char *buf);
+ssize_t dsi_panel_mipi_reg_read(struct dsi_panel *panel, char *buf);
+ssize_t dsi_panel_mipi_reg_write(struct dsi_panel *panel, char *buf, size_t count);
 #endif
 
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel);
