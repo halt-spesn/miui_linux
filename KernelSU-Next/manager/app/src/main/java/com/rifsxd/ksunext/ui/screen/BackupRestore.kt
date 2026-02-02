@@ -44,7 +44,7 @@ fun BackupRestoreScreen(navigator: DestinationsNavigator) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     val snackBarHost = LocalSnackbarHost.current
 
-    val isManager = Natives.becomeManager(ksuApp.packageName)
+    val isManager = Natives.isManager
     val ksuVersion = if (isManager) Natives.version else null
 
     Scaffold(
@@ -151,12 +151,6 @@ fun BackupRestoreScreen(navigator: DestinationsNavigator) {
                 )
             }
 
-            val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-
-            var useOverlayFs by rememberSaveable {
-                mutableStateOf(readMountSystemFile())
-            }
-
             val moduleRestore = stringResource(id = R.string.module_restore)
             val restoreMessage = stringResource(id = R.string.module_restore_message)
 
@@ -165,7 +159,7 @@ fun BackupRestoreScreen(navigator: DestinationsNavigator) {
                     Icon(
                         Icons.Filled.Restore,
                         moduleRestore,
-                        tint = if (useOverlayFs) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 },
                 headlineContent = { 
@@ -173,11 +167,10 @@ fun BackupRestoreScreen(navigator: DestinationsNavigator) {
                         moduleRestore,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (useOverlayFs) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface
                     ) 
                 },
                 modifier = Modifier.clickable(
-                    enabled = !useOverlayFs,
                     onClick = {
                         scope.launch {
                             val result = restoreDialog.awaitConfirm(title = moduleRestore, content = restoreMessage)

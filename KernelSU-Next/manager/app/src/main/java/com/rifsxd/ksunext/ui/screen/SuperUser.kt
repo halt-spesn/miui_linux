@@ -1,5 +1,6 @@
 package com.rifsxd.ksunext.ui.screen
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.AppProfileScreenDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
+import com.rifsxd.ksunext.ksuApp
 import com.rifsxd.ksunext.Natives
 import com.rifsxd.ksunext.R
 import com.rifsxd.ksunext.ui.component.SearchAppBar
@@ -131,9 +133,15 @@ fun SuperUserScreen(navigator: DestinationsNavigator) {
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                )
             ) {
-                items(viewModel.appList, key = { it.packageName + it.uid }) { app ->
+                items(
+                    viewModel.appList.filter { it.packageName != ksuApp.packageName }, 
+                    key = { it.packageName + it.uid }
+                ) { app ->
                     AppItem(app) {
                         navigator.navigate(AppProfileScreenDestination(app))
                     }
@@ -149,6 +157,10 @@ private fun AppItem(
     app: SuperUserViewModel.AppInfo,
     onClickListener: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    val developerOptionsEnabled = prefs.getBoolean("enable_developer_options", false)
+
     ListItem(
         modifier = Modifier.clickable(onClick = onClickListener),
         headlineContent = { Text(
@@ -169,8 +181,13 @@ private fun AppItem(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (app.allowSu) {
+                        val rootLabel = if (developerOptionsEnabled) {
+                            "ROOT | UID: ${app.uid}"
+                        } else {
+                            "ROOT"
+                        }
                         LabelItem(
-                            text = "ROOT",
+                            text = rootLabel,
                         )
                     } else {
                         if (Natives.uidShouldUmount(app.uid)) {
@@ -187,8 +204,8 @@ private fun AppItem(
                         LabelItem(
                             text = "CUSTOM",
                             style = LabelItemDefaults.style.copy(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                containerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.tertiaryContainer,
                             )
                         )
                     } else if (!app.allowSu && !Natives.uidShouldUmount(app.uid)) {

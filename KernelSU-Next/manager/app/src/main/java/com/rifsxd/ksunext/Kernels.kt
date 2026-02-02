@@ -41,6 +41,20 @@ data class KernelVersion(val major: Int, val patchLevel: Int, val subLevel: Int)
 
 }
 
+fun KernelVersion.getKernelType(): String {
+    return when {
+        isGKI() -> "GKI2"
+        isULegacy() -> "U-LEGACY"
+        isLegacy() -> "LEGACY"
+        isGKI1() -> "GKI1"
+        else -> "UNKNOWN"
+    }
+}
+
+fun KernelVersion.isKernel510(): Boolean {
+    return major == 5 && patchLevel == 10
+}
+
 fun parseKernelVersion(version: String): KernelVersion {
     val find = "(\\d+)\\.(\\d+)\\.(\\d+)".toRegex().find(version)
     return if (find != null) {

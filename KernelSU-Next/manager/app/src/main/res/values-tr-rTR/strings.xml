@@ -15,7 +15,7 @@
   <string name="lkm_mode_deprecated">LKM modu artık kullanımdan kaldırıldı!</string>
   <string name="lkm_alternative_suggestion">GKI çekirdeğini yükleyin veya KernelSU Next\'i cihazınıza entegre edin.</string>
   <string name="home_working">Çalışıyor</string>
-  <string name="home_working_version">Sürüm: %s (%d)</string>
+  <string name="home_working_version">Sürüm: %1$s (%2$d)</string>
   <string name="home_module_update_count">Güncellemeler: %d</string>
   <string name="home_failure">KernelSU Next v2 imzası çekirdekte bulunamadı! [ !KSU_NEXT || != size/hash ]</string>
   <string name="home_failure_tip">Kernel geliştiricinizden KernelSU Next\'i entegre etmelerini isteyin!</string>
@@ -25,10 +25,6 @@
   <string name="disable">Devre dışı bırak</string>
   <string name="enabled">Etkin</string>
   <string name="disabled">Devre dışı</string>
-  <string name="susfs_supported">Destekleniyor</string>
-  <string name="home_susfs">SuSFS: %s</string>
-  <string name="home_susfs_version">SuSFS sürümü</string>
-  <string name="home_susfs_sus_su">SuS SU</string>
   <string name="home_android">Android sürümü</string>
   <string name="home_manager_version">Yönetici sürümü</string>
   <string name="home_abi">ABI</string>
@@ -86,8 +82,6 @@
   <string name="home_magic_mount">Magic Mount</string>
   <string name="home_overlayfs_mount">OverlayFS</string>
   <string name="unavailable">Mevcut değil</string>
-  <string name="use_overlay_fs">OverlayFS\'i kullan</string>
-  <string name="use_overlay_fs_summary">KernelSU Next\'in bağlama sistemi için Magic Mount üzerinden OverlayFS kullanımı arasında geçiş yapın.</string>
   <string name="reboot_required">Yeniden başlatma gerekli</string>
   <string name="reboot_message">Değişiklikler sistem yeniden başlatıldıktan sonra geçerli olacaktır. Şimdi yeniden başlatmak istiyor musunuz?</string>
   <string name="module_restore">Modülü geri yükle</string>
@@ -103,7 +97,6 @@
   <string name="proceed">Devam et</string>
   <string name="cancel">İptal et</string>
   <string name="later">Sonra</string>
-  <string name="lkm_warning_message">LKM yaması kapalı kaynak bileşenlerine dayanır. Devam etmek istiyor musunuz?</string>
   <string name="home_next_kernelsu">🔥 Next Yapımı</string>
   <string name="home_next_kernelsu_repo">https://github.com/KernelSU-Next/KernelSU-Next</string>
   <string name="home_next_kernelsu_body">Next deneysel dalı. GitHub\'da göz atın!</string>
@@ -131,8 +124,6 @@
   <string name="require_kernel_version">Geçerli KernelSU Next sürümü %1$d, yöneticinin düzgün çalışması için çok düşük. Lütfen %2$d veya daha yüksek bir sürüme yükseltin!</string>
   <string name="settings_umount_modules_default">Modüllerin bağlantısını kes</string>
   <string name="settings_umount_modules_default_summary">Uygulama profilinde \"Modüllerin bağlantısını kes\" ayarı için genel varsayılan değer. Etkinleştirilirse, profili ayarlanmamış tüm uygulamalar için sistemdeki tüm modül değişikliklerini kaldırır.</string>
-  <string name="settings_susfs_toggle">kprobes kancasını gizle</string>
-  <string name="settings_susfs_toggle_summary">Bu seçenek, ksu tarafından oluşturulan kprobes kancasını devre dışı bırakır ve bunun yerine, kprobe\'u desteklemeyen GKI olmayan bir çekirdeğe uygulanacak aynı işlevselliği uygulayan gömülü kprobes olmayan kancayı etkinleştirir.</string>
   <string name="profile_umount_modules_summary">Bu seçeneğin etkinleştirilmesi, KernelSU Next\'in bu uygulama için modüller tarafından değiştirilen tüm dosyaları geri yüklemesine izin verecektir.</string>
   <string name="profile_selinux_domain">Alan adı</string>
   <string name="profile_selinux_rules">Kurallar</string>
@@ -141,7 +132,7 @@
   <string name="module_updated">Güncellendi</string>
   <string name="module_downloading">Modül indiriliyor: %s</string>
   <string name="module_start_downloading">İndirme başlıyor: %s</string>
-  <string name="new_version_available">Yeni sürüm %s mevcut, güncellemek için tıklayın.</string>
+  <string name="new_version_available">Yeni sürüm %1$s (%2$d) mevcut, güncellemek için tıklayın.</string>
   <string name="launch_app">Başlat</string>
   <string name="close">Kapat</string>
   <string name="force_stop_app">Durmaya zorla</string>
@@ -190,7 +181,6 @@
   <string name="install_next">Sonraki</string>
   <string name="select_file_tip">%1$s bölüm imajı önerilir</string>
   <string name="select_kmi">KMI seçin</string>
-  <string name="shrink_sparse_image">Sparse imajını küçültün</string>
   <string name="settings_uninstall">Kaldır</string>
   <string name="settings_uninstall_temporary">Geçici olarak kaldır</string>
   <string name="settings_uninstall_permanent">Kalıcı olarak kaldır</string>
@@ -228,7 +218,6 @@
   <string name="module_sort_action_first">Sırala (Önce eylem)</string>
   <string name="module_sort_webui_first">Sırala (Önce WebUI)</string>
   <string name="settings_global_namespace_mode_summary">Tüm root oturumları genel bağlama ad alanını kullanır</string>
-  <string name="shrink_sparse_image_message">Modülün bulunduğu seyrek görüntünün boyutunu gerçek boyutuna ayarlayın. Bu işlemin modülün anormal çalışmasına neden olabileceğini unutmayın, bu nedenle lütfen yalnızca gerekli olduğunda (örneğin yedekleme için) kullanın.</string>
   <string name="settings_uninstall_permanent_message">KernelSU Next\'i (root ve tüm modülleri) tamamen ve kalıcı olarak kaldır.</string>
   <string name="settings_restore_stock_image_message">Stok fabrika imajını geri yükleyin (yedekleme varsa), genellikle OTA\'dan önce kullanılır; KernelSU\'yu kaldırmanız gerekirse, lütfen \"Kalıcı olarak kaldır\"ı kullanın.</string>
   <string name="settings_disable_su_summary">Herhangi bir uygulamanın ⁠su komutu aracılığıyla root ayrıcalıkları elde etme yeteneğini geçici olarak devre dışı bırakın (mevcut root işlemleri etkilenmeyecektir).</string>

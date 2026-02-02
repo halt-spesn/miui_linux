@@ -1,5 +1,7 @@
 package com.rifsxd.ksunext.ui.util
 
+import android.app.Activity
+import android.content.Intent
 import android.content.ContentResolver
 import android.content.Context
 import android.database.Cursor
@@ -31,38 +33,8 @@ import java.util.*
 private const val TAG = "KsuCli"
 private const val BUSYBOX = "/data/adb/ksu/bin/busybox"
 
-private val ksuDaemonMagicPath by lazy {
-    "${ksuApp.applicationInfo.nativeLibraryDir}${File.separator}libksud_magic.so"
-}
-
-private val ksuDaemonOverlayfsPath by lazy {
-    "${ksuApp.applicationInfo.nativeLibraryDir}${File.separator}libksud_overlayfs.so"
-}
-
-fun readMountSystemFile(): Boolean {
-    val filePath = "/data/adb/ksu/mount_system"
-    val result = ShellUtils.fastCmd("cat $filePath").trim()
-    return result == "OVERLAYFS"
-}
-
-// Get the path based on the user's choice
-fun getKsuDaemonPath(): String {
-    val useOverlayFs = readMountSystemFile()
-
-    return if (useOverlayFs) {
-        ksuDaemonOverlayfsPath
-    } else {
-        ksuDaemonMagicPath
-    }
-}
-
-fun updateMountSystemFile(useOverlayFs: Boolean) {
-    val filePath = "/data/adb/ksu/mount_system"
-    if (useOverlayFs) {
-        ShellUtils.fastCmd("echo -n OVERLAYFS > $filePath")
-    } else {
-        ShellUtils.fastCmd("echo -n MAGIC_MOUNT > $filePath")
-    }
+private fun getKsuDaemonPath(): String {
+    return ksuApp.applicationInfo.nativeLibraryDir + File.separator + "libksud.so"
 }
 
 data class FlashResult(val code: Int, val err: String, val showReboot: Boolean) {
@@ -92,7 +64,7 @@ fun Uri.getFileName(context: Context): String? {
 fun createRootShellBuilder(globalMnt: Boolean = false): Shell.Builder {
     return Shell.Builder.create().run {
         val cmd = buildString {
-            append("$ksuDaemonMagicPath debug su")
+            append("${getKsuDaemonPath()} debug su")
             if (globalMnt) append(" -g")
             append(" || ")
             append("su")
@@ -123,6 +95,23 @@ fun execKsud(args: String, newShell: Boolean = false): Boolean {
     } else {
         ShellUtils.fastCmdResult("${getKsuDaemonPath()} $args")
     }
+}
+
+suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {
+    val shell = createRootShell(true)
+    
+    val out = shell.newJob()
+        .add("${getKsuDaemonPath()} feature check $feature").to(ArrayList<String>(), null).exec().out
+    out.firstOrNull()?.trim().orEmpty()
+}
+
+suspend fun getFeaturePersistValue(feature: String): Long? = withContext(Dispatchers.IO) {
+    val shell = createRootShell(true)
+    
+    val out = shell.newJob()
+        .add("${getKsuDaemonPath()} feature get --config $feature").to(ArrayList<String>(), null).exec().out
+    val valueLine = out.firstOrNull { it.trim().startsWith("Value:") } ?: return@withContext null
+    valueLine.substringAfter("Value:").trim().toLongOrNull()
 }
 
 fun install() {
@@ -171,6 +160,52 @@ fun restoreModule(id: String): Boolean {
     val result = execKsud(cmd, true)
     Log.i(TAG, "restore module $id result: $result")
     return result
+}
+
+private fun processUiPrintLine(s: String?): Pair<Int, String?> {
+    if (s == null) {
+        return Pair(1,null)
+    }
+
+    val check1 = s.startsWith("ui_print")
+    val trimmed = s.trim()
+    val check2 = trimmed.startsWith("ui_print")
+    if (!check1 && check2) return Pair(1,null)
+
+    return if(check1) {
+        Pair(1,trimmed.drop(8).dropWhile { it.isWhitespace() })
+    }
+    else {
+        Pair(2, trimmed)
+    }
+}
+
+private fun flashWithIO_ak3(
+    cmd: String,
+    onStdout: (String) -> Unit,
+    onStderr: (String) -> Unit
+): Shell.Result {
+
+    val stdoutCallback: CallbackList<String?> = object : CallbackList<String?>() {
+        override fun onAddElement(s: String?) {
+            val (type, text) = processUiPrintLine(s)
+            if(type == 1) {
+                text?.let(onStdout)
+            } else {
+                text?.let(onStderr)
+            }
+        }
+    }
+
+    val stderrCallback: CallbackList<String?> = object : CallbackList<String?>() {
+        override fun onAddElement(s: String?) {
+            onStderr(s ?: "")
+        }
+    }
+
+    return withNewRootShell {
+        newJob().add(cmd).to(stdoutCallback, stderrCallback).exec()
+    }
 }
 
 private fun flashWithIO(
@@ -257,10 +292,6 @@ fun uninstallPermanently(
     return FlashResult(result)
 }
 
-suspend fun shrinkModules(): Boolean = withContext(Dispatchers.IO) {
-    execKsud("module shrink", true)
-}
-
 @Parcelize
 sealed class LkmSelection : Parcelable {
     data class LkmUri(val uri: Uri) : LkmSelection()
@@ -343,16 +374,61 @@ fun installBoot(
 fun reboot(reason: String = "") {
     if (reason == "recovery") {
         // KEYCODE_POWER = 26, hide incorrect "Factory data reset" message
-        ShellUtils.fastCmdResult("/system/bin/reboot $reason")
+        ShellUtils.fastCmdResult("/system/bin/input keyevent 26")
     }
     ShellUtils.fastCmdResult("/system/bin/svc power reboot $reason || /system/bin/reboot $reason")
 }
 
-fun rootAvailable() = Shell.isAppGrantedRoot() == true
+fun flashAnyKernelZip(
+    uri: Uri,
+    onStdout: (String) -> Unit,
+    onStderr: (String) -> Unit
+): FlashResult {
+    val resolver = ksuApp.contentResolver
 
-fun isAbDevice(): Boolean {
-    return ShellUtils.fastCmd("getprop ro.build.ab_update").trim().toBoolean()
+    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val tmpFile = File(ksuApp.cacheDir, "anykernel_${timestamp}.zip")
+    resolver.openInputStream(uri).use { input ->
+        tmpFile.outputStream().use { out ->
+            input?.copyTo(out)
+        }
+    }
+
+    val destZip = tmpFile.absolutePath
+    val destZipName = File(destZip).name
+    val destDirFile = File(ksuApp.cacheDir, "anykernel3_${timestamp}")
+    val destDir = destDirFile.absolutePath
+
+    val cmd = """
+                mkdir -p '$destDir' && \
+                $BUSYBOX unzip -p -o '$destZip' "META-INF/com/google/android/update-binary" > '$destDir/update-binary' 2>/dev/null && \
+                cp '$destZip' '$destDir/$destZipName' 2>/dev/null || true && \
+                $BUSYBOX chmod 755 '$destDir/update-binary' && \
+                $BUSYBOX chown root:root '$destDir/update-binary' && \
+                (cd '$destDir' && \
+                    if [ -f './update-binary' ]; then \
+                        AKHOME='$destDir/tmp' $BUSYBOX ash '$destDir/update-binary' 3 1 '$destDir/$destZipName'; \
+                    else \
+                        echo 'No installer script found' >&2; exit 1; \
+                    fi)
+            """.trimIndent().replace(Regex("\\s+\\\\\\s*"), " ")
+
+    val result = flashWithIO_ak3(cmd, onStdout, onStderr)
+    try {
+        return FlashResult(result, result.isSuccess)
+    } finally {
+        try {
+            runCatching {
+                createRootShell(true).use { sh ->
+                    sh.newJob().add("rm -rf '$destDir' '$destZip'").exec()
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
 }
+
+fun rootAvailable() = Shell.isAppGrantedRoot() == true
 
 fun isInitBoot(): Boolean {
     return !Os.uname().release.contains("android12-")
@@ -364,33 +440,45 @@ suspend fun getCurrentKmi(): String = withContext(Dispatchers.IO) {
 }
 
 suspend fun getSupportedKmis(): List<String> = withContext(Dispatchers.IO) {
-    val cmd = "boot-info supported-kmi"
+    val cmd = "boot-info supported-kmis"
     val out = Shell.cmd("${getKsuDaemonPath()} $cmd").to(ArrayList(), null).exec().out
     out.filter { it.isNotBlank() }.map { it.trim() }
 }
 
-fun overlayFsAvailable(): Boolean {
-    // check /proc/filesystems
-    return ShellUtils.fastCmdResult("cat /proc/filesystems | grep overlay")
+suspend fun isAbDevice(): Boolean = withContext(Dispatchers.IO) {
+    val cmd = "boot-info is-ab-device"
+    ShellUtils.fastCmd("${getKsuDaemonPath()} $cmd").trim().toBoolean()
+}
+
+suspend fun getDefaultPartition(): String = withContext(Dispatchers.IO) {
+    if (rootAvailable()) {
+        val cmd = "boot-info default-partition"
+        ShellUtils.fastCmd("${getKsuDaemonPath()} $cmd").trim()
+    } else {
+        if (!Os.uname().release.contains("android12-")) "init_boot" else "boot"
+    }
+}
+
+suspend fun getSlotSuffix(ota: Boolean): String = withContext(Dispatchers.IO) {
+    val cmd = if (ota) {
+        "boot-info slot-suffix --ota"
+    } else {
+        "boot-info slot-suffix"
+    }
+    ShellUtils.fastCmd("${getKsuDaemonPath()} $cmd").trim()
+}
+
+suspend fun getAvailablePartitions(): List<String> = withContext(Dispatchers.IO) {
+    val shell = createRootShell(true)
+    val cmd = "boot-info available-partitions"
+    val out = shell.newJob().add("${getKsuDaemonPath()} $cmd").to(ArrayList(), null).exec().out
+    out.filter { it.isNotBlank() }.map { it.trim() }
 }
 
 fun hasMagisk(): Boolean {
     val result = ShellUtils.fastCmdResult("which magisk")
     Log.i(TAG, "has magisk: $result")
     return result
-}
-
-fun isGlobalNamespaceEnabled(): Boolean {
-    val result = ShellUtils.fastCmd("cat ${Natives.GLOBAL_NAMESPACE_FILE}")
-    Log.i(TAG, "is global namespace enabled: $result")
-    return result == "1"
-}
-
-fun setGlobalNamespaceEnabled(value: String) {
-    Shell.cmd("echo $value > ${Natives.GLOBAL_NAMESPACE_FILE}")
-        .submit { result ->
-            Log.i(TAG, "setGlobalNamespaceEnabled result: ${result.isSuccess} [${result.out}]")
-        }
 }
 
 fun isSepolicyValid(rules: String?): Boolean {
@@ -529,42 +617,6 @@ fun moduleMigration(): Boolean {
     return ShellUtils.fastCmdResult(command)
 }
 
-private val suSFSDaemonPath by lazy {
-    "${ksuApp.applicationInfo.nativeLibraryDir}${File.separator}libsusfsd.so"
-}
-
-fun getSuSFS(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath support")
-}
-
-fun getSuSFSVersion(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath version")
-}
-
-fun getSuSFSVariant(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath variant")
-}
-
-fun getSuSFSFeatures(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath features")
-}
-
-fun hasSuSFs_SUS_SU(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath sus_su support")
-}
-
-fun susfsSUS_SU_0(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath sus_su 0")
-}
-
-fun susfsSUS_SU_2(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath sus_su 2")
-}
-
-fun susfsSUS_SU_Mode(): String {
-    return ShellUtils.fastCmd("$suSFSDaemonPath sus_su mode")
-}
-
 fun currentMountSystem(): String {
     val result = ShellUtils.fastCmd("${getKsuDaemonPath()} module mount").trim()
     return result.substringAfter(":").substringAfter(" ").trim()
@@ -576,48 +628,55 @@ fun getModuleSize(dir: File): Long {
 }
 
 fun isSuCompatDisabled(): Boolean {
-    return Natives.version >= Natives.MINIMAL_SUPPORTED_SU_COMPAT && !Natives.isSuEnabled()
+    return !Natives.isSuEnabled()
 }
 
 fun zygiskRequired(dir: File): Boolean {
     return (SuFile(dir, "zygisk").listFiles()?.size ?: 0) > 0
 }
 
-fun getZygiskImplementation(): String {
+fun getZygiskImplementation(property: String): String {
     val modulesPath = "/data/adb/modules"
-    val zygiskModuleIds = arrayOf(
-        "rezygisk",
-        "zygisksu"
-    )
-    return try {
-        zygiskModuleIds.firstNotNullOfOrNull { moduleName ->
-            val modulePath = "$modulesPath/$moduleName"
-            val isEnabled = ShellUtils.fastCmdResult("test -f $modulePath/module.prop && test ! -f $modulePath/disable")
-            if (!isEnabled) return@firstNotNullOfOrNull null
-            ShellUtils.fastCmd("grep '^name=' $modulePath/module.prop | cut -d'=' -f2").takeIf { it.isNotBlank() }
-        } ?: "None"
-    } catch (_: Exception) {
-        "None"
-    }.also { result ->
-        Log.i(TAG, "Zygisk implement: $result")
+    val zygiskModuleIds = arrayOf("rezygisk", "zygisksu")
+
+    for (moduleId in zygiskModuleIds) {
+        val moduleDir = SuFile.open("$modulesPath/$moduleId")
+        if (!moduleDir.isDirectory) continue
+        if (SuFile.open("$modulesPath/$moduleId/disable").isFile ||
+            SuFile.open("$modulesPath/$moduleId/remove").isFile
+        ) continue
+
+        val propFile = SuFile.open("$modulesPath/$moduleId/module.prop")
+        if (!propFile.isFile) continue
+
+        val prop = Properties().apply { load(propFile.newInputStream()) }
+        prop.getProperty(property)?.let {
+            Log.i(TAG, "Zygisk $property: $it")
+            return it
+        }
+    }
+
+    Log.i(TAG, "Zygisk $property: None")
+    return "None"
+}
+
+fun refreshActivity(context: Context) {
+    if (context is Activity) {
+        context.recreate()
     }
 }
 
-fun getZygiskVersion(): String {
-    val modulesPath = "/data/adb/modules"
-    val zygiskModuleIds = arrayOf(
-        "rezygisk",
-        "zygisksu"
+fun restartActivity(context: Context) {
+    val packageManager = context.packageManager
+    val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+    intent?.addFlags(
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+        Intent.FLAG_ACTIVITY_CLEAR_TASK or
+        Intent.FLAG_ACTIVITY_CLEAR_TOP
     )
-    return try {
-        zygiskModuleIds.firstNotNullOfOrNull { moduleName ->
-            val modulePath = "$modulesPath/$moduleName"
-            val isEnabled = ShellUtils.fastCmdResult("test -f $modulePath/module.prop && test ! -f $modulePath/disable")
-            if (!isEnabled) return@firstNotNullOfOrNull null
-            ShellUtils.fastCmd("grep '^version=' $modulePath/module.prop | cut -d'=' -f2").takeIf { it.isNotBlank() }
-        } ?: "None"
-    } catch (_: Exception) {
-        "None"
+    context.startActivity(intent)
+    if (context is Activity) {
+        context.finish()
     }
 }
 

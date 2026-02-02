@@ -86,8 +86,7 @@ fun flashModulesSequentially(
 @Destination<RootGraph>
 fun FlashScreen(
     navigator: DestinationsNavigator,
-    flashIt: FlashIt,
-    finishIntent: Boolean = false
+    flashIt: FlashIt
 ) {
 
     var text by rememberSaveable { mutableStateOf("") }
@@ -124,7 +123,6 @@ fun FlashScreen(
 
     BackHandler(enabled = flashing != FlashingStatus.FLASHING) {
         navigator.popBackStack()
-        if (finishIntent) activity?.finish()
     }
 
     val confirmDialog = rememberConfirmDialog()
@@ -152,7 +150,6 @@ fun FlashScreen(
             } else {
                 // User cancelled, go back
                 navigator.popBackStack()
-                if (finishIntent) activity?.finish()
             }
         } else {
             confirmed = true
@@ -193,7 +190,6 @@ fun FlashScreen(
                 flashing,
                 onBack = dropUnlessResumed {
                     navigator.popBackStack()
-                    if (finishIntent) activity?.finish()
                 },
                 onSave = {
                     scope.launch {
@@ -226,6 +222,30 @@ fun FlashScreen(
                 )
             }
 
+            if (flashIt is FlashIt.FlashAnyKernel && (flashing == FlashingStatus.SUCCESS)) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                reboot()
+                            }
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.reboot)) },
+                    text = { Text(text = stringResource(R.string.reboot)) }
+                )
+            }
+
+            if (flashIt is FlashIt.FlashAnyKernel && (flashing == FlashingStatus.FAILED)) {
+                ExtendedFloatingActionButton(
+                    text = { Text(text = stringResource(R.string.close)) },
+                    icon = { Icon(Icons.Filled.Close, contentDescription = null) },
+                    onClick = {
+                        navigator.popBackStack()
+                    }
+                )
+            }
+
             if (flashIt is FlashIt.FlashModules && (flashing == FlashingStatus.FAILED)) {
                 // Close button for modules flashing
                 ExtendedFloatingActionButton(
@@ -233,7 +253,6 @@ fun FlashScreen(
                     icon = { Icon(Icons.Filled.Close, contentDescription = null) },
                     onClick = {
                         navigator.popBackStack()
-                        if (finishIntent) activity?.finish()
                     }
                 )
             }
@@ -325,6 +344,8 @@ sealed class FlashIt : Parcelable {
 
     data class FlashModules(val uris: List<Uri>) : FlashIt()
 
+    data class FlashAnyKernel(val uri: Uri) : FlashIt()
+
     data object FlashRestore : FlashIt()
 
     data object FlashUninstall : FlashIt()
@@ -340,6 +361,12 @@ fun flashIt(
             flashIt.boot,
             flashIt.lkm,
             flashIt.ota,
+            onStdout,
+            onStderr
+        )
+
+        is FlashIt.FlashAnyKernel -> flashAnyKernelZip(
+            flashIt.uri,
             onStdout,
             onStderr
         )

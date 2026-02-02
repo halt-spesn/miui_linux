@@ -15,7 +15,7 @@
   <string name="lkm_mode_deprecated">이제 LKM 모드는 지원되지 않습니다!</string>
   <string name="lkm_alternative_suggestion">GKI Kernel 혹은 KernelSU Next를 설치하세요.</string>
   <string name="home_working">처리 중</string>
-  <string name="home_working_version">Version: %s (%d)</string>
+  <string name="home_working_version">Version: %1$s (%2$d)</string>
   <string name="home_module_update_count">Updates: %d</string>
   <string name="home_failure">Kernel에 KernelSU Next v2 signature가 없습니다! !KSU_NEXT || != size/hash ]</string>
   <string name="home_failure_tip">Kernel 개발자에게 KernelSU Next를 지원하도록 요청하세요!</string>
@@ -25,10 +25,6 @@
   <string name="disable">비활성화</string>
   <string name="enabled">활성화됨</string>
   <string name="disabled">비활성화됨</string>
-  <string name="susfs_supported">지원됨</string>
-  <string name="home_susfs">SuSFS: %s</string>
-  <string name="home_susfs_version">SuSFS version</string>
-  <string name="home_susfs_sus_su">SuS SU</string>
   <string name="home_android">Android version</string>
   <string name="home_manager_version">Manager version</string>
   <string name="home_abi">ABI</string>
@@ -86,8 +82,6 @@
   <string name="home_magic_mount">Magic Mount</string>
   <string name="home_overlayfs_mount">OverlayFS</string>
   <string name="unavailable">사용할 수 없음</string>
-  <string name="use_overlay_fs">OverlayFS 사용</string>
-  <string name="use_overlay_fs_summary">KernelSU Next 마운트 시스템에 Magic Mount대신 OverlayFS 사용</string>
   <string name="reboot_required">재시작 필요</string>
   <string name="reboot_message">변경사항은 시스템 재시작 이후 적용됩니다. 지금 재시작 할까요?</string>
   <string name="module_restore">모듈 복구</string>
@@ -103,7 +97,6 @@
   <string name="proceed">계속</string>
   <string name="cancel">취소</string>
   <string name="later">다음에</string>
-  <string name="lkm_warning_message">LKM 패치는 비공개 소스 구성 요소에 의존합니다. 계속 진행할까요?</string>
   <string name="home_next_kernelsu">🔥 Next build</string>
   <string name="home_next_kernelsu_repo">https://github.com/KernelSU-Next/KernelSU-Next</string>
   <string name="home_next_kernelsu_body">다음 실험적인 Branch. Github에서 확인해보세요!</string>
@@ -131,8 +124,6 @@
   <string name="require_kernel_version">KernelSU Next 버전 %1$d이 너무 낮아서 Manager가 작동하지 않습니다. %2$d 이상의 버전을 사용하세요!</string>
   <string name="settings_umount_modules_default">모듈 언마운트</string>
   <string name="settings_umount_modules_default_summary">앱 프로필 메뉴의 \"모듈 언마운트\" 설정에 대한 전역 기본값을 설정합니다. 활성화 시, 개별 프로필이 설정되지 않은 앱은 모든 모듈의 시스템 수정 사항을 제거합니다.</string>
-  <string name="settings_susfs_toggle">Kprobes hook 숨김</string>
-  <string name="settings_susfs_toggle_summary">이 옵션을 선택하면 ksu에서 생성한 kprobes hook가 비활성화되고, 대신 내장된 non-kprobes hook가 활성화됩니다. 이로써 kprobe를 지원하지 않는 non-GKI 커널에 적용되는 것과 동일한 기능이 구현됩니다.</string>
   <string name="profile_umount_modules_summary">이 옵션이 활성화되면, KernelSU는 이 앱에 대한 모듈의 모든 수정사항을 복구합니다.</string>
   <string name="profile_selinux_domain">Domain</string>
   <string name="profile_selinux_rules">Rules</string>
@@ -141,7 +132,7 @@
   <string name="module_updated">업데이트됨</string>
   <string name="module_downloading">%s 모듈 다운로드 중</string>
   <string name="module_start_downloading">%s 다운로드 시작</string>
-  <string name="new_version_available">새 버전: %s 사용 가능, 여기를 눌러서 받기</string>
+  <string name="new_version_available">새 버전: %1$s (%2$d) 사용 가능, 여기를 눌러서 받기</string>
   <string name="launch_app">실행</string>
   <string name="close">닫기</string>
   <string name="force_stop_app">강제 종료</string>
@@ -190,7 +181,6 @@
   <string name="install_next">다음</string>
   <string name="select_file_tip">%1$s 파티션 이미지 권장됨</string>
   <string name="select_kmi">KMI 선택</string>
-  <string name="shrink_sparse_image">Sparse 이미지 최소화</string>
   <string name="settings_uninstall">삭제</string>
   <string name="settings_uninstall_temporary">임시 삭제</string>
   <string name="settings_uninstall_permanent">영구 삭제</string>
@@ -228,7 +218,6 @@
   <string name="module_sort_action_first">정렬 (동작 우선)</string>
   <string name="module_sort_webui_first">정렬 (WebUI 우선)</string>
   <string name="settings_global_namespace_mode_summary">All root sessions use the global mount namespace</string>
-  <string name="shrink_sparse_image_message">Resize the sparse image where the module is located to its actual size. Note that this may cause the module to work abnormally, so please only use when necessary (such as for backup).</string>
   <string name="settings_uninstall_permanent_message">Uninstalling KernelSU Next (root and all modules) completely and permanently.</string>
   <string name="settings_restore_stock_image_message">Restore the stock factory image (if a backup exists), usually used before OTA; if you need to uninstall KernelSU Next, please use \"Uninstall permanently\".</string>
   <string name="settings_disable_su_summary">Temporarily disable the ability of any app to gain root privileges via the ⁠su command (existing root processes won\'t be affected).</string>

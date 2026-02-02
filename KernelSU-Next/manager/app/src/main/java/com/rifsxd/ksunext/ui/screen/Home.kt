@@ -1,11 +1,16 @@
 package com.rifsxd.ksunext.ui.screen
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ShortcutInfo
 import android.os.Build
 import android.os.PowerManager
 import android.system.Os
 import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -41,6 +46,9 @@ import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.core.content.pm.PackageInfoCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dergoogler.mmrl.ui.component.LabelItem
 import com.dergoogler.mmrl.ui.component.LabelItemDefaults
@@ -57,12 +65,15 @@ import com.rifsxd.ksunext.R
 import com.rifsxd.ksunext.ui.component.rememberConfirmDialog
 import com.rifsxd.ksunext.ui.theme.ORANGE
 import com.rifsxd.ksunext.ui.util.*
+import com.rifsxd.ksunext.ui.webui.WebUIActivity
+import com.rifsxd.ksunext.ui.util.restartActivity
 import com.rifsxd.ksunext.ui.util.module.LatestVersionInfo
 import com.rifsxd.ksunext.ui.viewmodel.ModuleViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.*
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Destination<RootGraph>(start = true)
@@ -71,7 +82,7 @@ fun HomeScreen(navigator: DestinationsNavigator) {
     val kernelVersion = getKernelVersion()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
 
-    val isManager = Natives.becomeManager(ksuApp.packageName)
+    val isManager = Natives.isManager
     val fullFeatured = isManager && !Natives.requireNewKernel() && rootAvailable()
     val ksuVersion = if (isManager) Natives.version else null
     val ksuVersionTag = if (isManager) Natives.getVersionTag() else null
@@ -102,11 +113,12 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                 .padding(innerPadding)
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             val lkmMode = ksuVersion?.let {
-                if (it >= Natives.MINIMAL_SUPPORTED_KERNEL_LKM && kernelVersion.isGKI()) Natives.isLkmMode else null
+                if (kernelVersion.isGKI()) Natives.isLkmMode else null
             }
 
             StatusCard(kernelVersion, ksuVersion, lkmMode, ksuVersionTag = ksuVersionTag) {
@@ -141,18 +153,14 @@ fun HomeScreen(navigator: DestinationsNavigator) {
                 WarningCard(
                     stringResource(id = R.string.grant_root_failed),
                     onClick = {
-                        val pm = context.packageManager
-                        val intent = pm.getLaunchIntentForPackage(context.packageName)
-                        intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                        Runtime.getRuntime().exit(0)
+                        restartActivity(context)
                     }
                 )
             }
 
             val checkUpdate =
                 LocalContext.current.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                    .getBoolean("check_update", false)
+                    .getBoolean("check_update", true)
             if (checkUpdate) {
                 UpdateCard()
             }
@@ -322,6 +330,7 @@ fun UpdateCard() {
     val newVersionCode = newVersion.versionCode
     val newVersionUrl = newVersion.downloadUrl
     val changelog = newVersion.changelog
+    val newVersionTag = newVersion.versionTag
 
     val uriHandler = LocalUriHandler.current
     val title = stringResource(id = R.string.module_changelog)
@@ -362,7 +371,11 @@ fun UpdateCard() {
                     modifier = Modifier.padding(end = 20.dp)
                 )
                 Text(
-                    text = stringResource(id = R.string.new_version_available).format(newVersionCode),
+                    text = if (!newVersionTag.isNullOrEmpty()) {
+                        stringResource(id = R.string.new_version_available, newVersionTag, newVersionCode)
+                    } else {
+                        stringResource(id = R.string.new_version_available, "", newVersionCode)
+                    },
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -414,12 +427,48 @@ private fun TopBar(
         }
     )
 
+    val moduleViewModel: ModuleViewModel = viewModel()
+    
+    val kpatchNext = moduleViewModel.moduleList.find { it.id == "KPatch-Next" }
+    val toolkitModule = moduleViewModel.moduleList.find { it.id == "ksu_toolkit" }
+    val zygiskId = getZygiskImplementation("id")
+    val zygiskModule = moduleViewModel.moduleList.find { it.id == zygiskId }
+    
+    val webUILauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { }
+
+    val context = LocalContext.current
+
     LaunchedEffect(Unit) {
         isSpinning = true
         rotationTarget += 360f * 6
     }
 
-    TopAppBar(
+    val shortcutKey = remember(kpatchNext, toolkitModule, zygiskModule) {
+        listOfNotNull(
+            kpatchNext?.takeIf { it.hasWebUi }?.id,
+            toolkitModule?.takeIf { it.hasWebUi }?.id,
+            zygiskModule?.takeIf { it.hasWebUi }?.id
+        ).joinToString(",")
+    }
+
+    LaunchedEffect(shortcutKey) {
+        if (shortcutKey.isEmpty()) {
+            ShortcutManagerCompat.removeAllDynamicShortcuts(context)
+            return@LaunchedEffect
+        }
+
+        val moduleConfigs = listOfNotNull(
+            kpatchNext?.takeIf { it.hasWebUi }?.let { it to R.drawable.ic_kpatch_next },
+            toolkitModule?.takeIf { it.hasWebUi }?.let { it to R.drawable.ic_toolkit },
+            zygiskModule?.takeIf { it.hasWebUi }?.let { it to R.drawable.ic_zygisk }
+        )
+
+        handleDynamicShortcuts(context, moduleConfigs)
+    }
+
+        TopAppBar(
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -431,11 +480,26 @@ private fun TopBar(
                         isSpinning = true
                         rotationTarget += 360f * 6
                     }
+
+                    if (kpatchNext != null && kpatchNext.hasWebUi) {
+                        webUILauncher.launch(
+                            Intent(context, WebUIActivity::class.java)
+                                .setData("kernelsu://webui/${kpatchNext.id}".toUri())
+                                .putExtra("id", kpatchNext.id)
+                                .putExtra("name", kpatchNext.name)
+                        )
+                    }
                 }
             ) {
+                val contentColor =
+                    if (kpatchNext != null)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        LocalContentColor.current
                 Icon(
                     painter = painterResource(R.drawable.ic_ksu_next),
                     contentDescription = null,
+                    tint = contentColor,
                     modifier = Modifier
                         .padding(end = 8.dp)
                         .graphicsLayer {
@@ -446,18 +510,17 @@ private fun TopBar(
                     text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
+                    color = contentColor
                 )
             }
         },
         actions = {
             if (ksuVersion != null) {
-                if (kernelVersion.isGKI()) {
-                    IconButton(onClick = onInstallClick) {
-                        Icon(
-                            imageVector = Icons.Filled.Archive,
-                            contentDescription = stringResource(id = R.string.install)
-                        )
-                    }
+                IconButton(onClick = onInstallClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Archive,
+                        contentDescription = stringResource(id = R.string.install)
+                    )
                 }
             }
 
@@ -534,26 +597,20 @@ private fun StatusCard(
                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         if (ksuVersion != null) {
                             context.startActivity(intent)
-                        } else if (kernelVersion.isGKI()) {
-                            onClickInstall()
                         } else {
-                            Toast.makeText(context, "Something weird happened... 🤔", Toast.LENGTH_SHORT).show()
+                            onClickInstall()
                         }
-                    } else if (ksuVersion == null && kernelVersion.isGKI()) {
+                    } else if (ksuVersion == null) {
                         onClickInstall()
                     }
                 }
                 .padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             when {
                 ksuVersion != null -> {
-                    val workingMode = when {
-                        lkmMode == true -> "LKM"
-                        lkmMode == false || kernelVersion.isGKI() -> "GKI2"
-                        lkmMode == null && kernelVersion.isULegacy() -> "U-LEGACY"
-                        lkmMode == null && kernelVersion.isLegacy() -> "LEGACY"
-                        lkmMode == null && kernelVersion.isGKI1() -> "GKI1"
-                        else -> "NON-STANDARD"
-                    }
+                    val workingMode = if (lkmMode == true || lkmMode == false) {
+                        val mode = if (lkmMode == true) "LKM" else "BUILT-IN"
+                        "$mode (" + kernelVersion.getKernelType() + ")"
+                    } else kernelVersion.getKernelType()
 
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
@@ -698,7 +755,7 @@ private fun InfoCard(autoExpand: Boolean = false) {
 
     val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    val isManager = Natives.becomeManager(ksuApp.packageName)
+    val isManager = Natives.isManager
     val ksuVersion = if (isManager) Natives.version else null
 
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -711,7 +768,7 @@ private fun InfoCard(autoExpand: Boolean = false) {
         }
     }   
 
-    ElevatedCard {
+    Card {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -754,18 +811,16 @@ private fun InfoCard(autoExpand: Boolean = false) {
                 InfoCardItem(
                     label = stringResource(R.string.home_manager_version),
                     content = if (
-                        developerOptionsEnabled &&
-                        Natives.version >= Natives.MINIMAL_SUPPORTED_MANAGER_UID
+                        developerOptionsEnabled
                     ) {
-                        "${managerVersion.first} (${managerVersion.second}) | UID: ${Natives.getManagerUid()}"
+                        "${managerVersion.first} (${managerVersion.second}) | UID: ${Natives.getManagerAppid()}"
                     } else {
                         "${managerVersion.first} (${managerVersion.second})"
                     },
                     icon = Icons.Filled.AutoAwesomeMotion,
                 )
 
-                if (ksuVersion != null &&
-                    Natives.version >= Natives.MINIMAL_SUPPORTED_HOOK_MODE) {
+                if (ksuVersion != null) {
 
                     val hookMode =
                         Natives.getHookMode()
@@ -783,34 +838,33 @@ private fun InfoCard(autoExpand: Boolean = false) {
 
                 if (ksuVersion != null) {
                     Spacer(Modifier.height(16.dp))
+                    
+                    val moduleViewModel: ModuleViewModel = viewModel()
+                    val meta = moduleViewModel.moduleList.firstOrNull {
+                        it.isMetaModule && it.enabled && !it.remove
+                    }
+
+                    val mountSystem = currentMountSystem()
+                        .ifBlank { stringResource(R.string.unavailable) }
+
+                    val content = listOfNotNull(
+                        mountSystem,
+                        meta?.name?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.home_not_installed),
+                        meta?.version?.takeIf { it.isNotBlank() }
+                    ).joinToString(" | ")
+
                     InfoCardItem(
                         label = stringResource(R.string.home_mount_system),
-                        content = currentMountSystem().ifEmpty { stringResource(R.string.unavailable) },
-                        icon = Icons.Filled.SettingsSuggest,
+                        content = content,
+                        icon = Icons.Filled.SettingsSuggest
                     )
-
-                    val suSFS = getSuSFS()
-                    if (suSFS == "Supported") {
-                        val isSUS_SU = hasSuSFs_SUS_SU() == "Supported"
-                        val susSUMode = if (isSUS_SU) {
-                            val mode = susfsSUS_SU_Mode()
-                            val modeString =
-                                if (mode == "2") stringResource(R.string.enabled) else stringResource(R.string.disabled)
-                            "| SuS SU: $modeString"
-                        } else ""
-                        Spacer(Modifier.height(16.dp))
-                        InfoCardItem(
-                            label = stringResource(R.string.home_susfs_version),
-                            content = "${stringResource(R.string.susfs_supported)} | ${getSuSFSVersion()} (${getSuSFSVariant()}) $susSUMode",
-                            icon = painterResource(R.drawable.ic_sus),
-                        )
-                    }
 
                     if (Natives.isZygiskEnabled()) {
                         Spacer(Modifier.height(16.dp))
                         InfoCardItem(
                             label = stringResource(R.string.zygisk_status),
-                            content = "${stringResource(R.string.enabled)} | ${getZygiskImplementation()} | ${getZygiskVersion()}",
+                            content = "${stringResource(R.string.enabled)} | ${getZygiskImplementation("name")} | ${getZygiskImplementation("version")}",
                             icon = Icons.Filled.Vaccines
                         )
                     }
@@ -954,7 +1008,7 @@ fun IssueReportCard() {
     val githubIssueUrl = stringResource(R.string.issue_report_github_link)
     val telegramUrl = stringResource(R.string.issue_report_telegram_link)
 
-    ElevatedCard {
+    Card {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -993,6 +1047,30 @@ fun IssueReportCard() {
                 }
             }
         }
+    }
+}
+
+@SuppressLint("RestrictedApi")
+fun handleDynamicShortcuts(context: Context, moduleConfigs: List <Pair<ModuleViewModel.ModuleInfo, Int>>) {
+    ShortcutManagerCompat.removeAllDynamicShortcuts(context)
+
+    moduleConfigs.forEach { (module, iconRes) ->
+        val shortcut = ShortcutInfoCompat.Builder(context, module.id)
+            .setShortLabel(module.name)
+            .setLongLabel(module.name)
+            .setIcon(IconCompat.createWithResource(context, iconRes))
+            .setCategories(setOf(ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION))
+            .setIntent(
+                Intent(context, WebUIActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = "kernelsu://webui/${module.id}".toUri()
+                    putExtra("id", module.id)
+                    putExtra("name", module.name)
+                }
+            )
+            .build()
+
+        ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
     }
 }
 

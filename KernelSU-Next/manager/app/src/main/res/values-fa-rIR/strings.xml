@@ -15,7 +15,7 @@
   <string name="lkm_mode_deprecated">حالت LKM اکنون منسوخ شده است!</string>
   <string name="lkm_alternative_suggestion">کرنل GKI نصب کنید یا KernelSU را به صورت دستی بسازید.</string>
   <string name="home_working">درحال کارکردن</string>
-  <string name="home_working_version">نسخه: %s (%d)</string>
+  <string name="home_working_version">نسخه: %1$s (%2$d)</string>
   <string name="home_module_update_count">بروزرسانی ها: %d</string>
   <string name="home_failure">امضای KernelSU Next v2 در کرنل یافت نشد!
 [KSU_NEXT || != size/hash!]</string>
@@ -26,10 +26,6 @@
   <string name="disable">غیرفعال کردن</string>
   <string name="enabled">فعال شده</string>
   <string name="disabled">غیرفعال شده</string>
-  <string name="susfs_supported">پشتیبانی شده</string>
-  <string name="home_susfs">SuSFS: %s</string>
-  <string name="home_susfs_version">نسخه SuSFS</string>
-  <string name="home_susfs_sus_su">SuS SU</string>
   <string name="home_android">نسخه اندروید</string>
   <string name="home_manager_version">نسخه مدیریت</string>
   <string name="home_abi">رابطه باینری</string>
@@ -87,8 +83,6 @@
   <string name="home_magic_mount">Magic Mount</string>
   <string name="home_overlayfs_mount">OverlayFS</string>
   <string name="unavailable">غیرقابل دسترس</string>
-  <string name="use_overlay_fs">از OverlayFS استفاده کنید</string>
-  <string name="use_overlay_fs_summary">برای سیستم مانت KernelSU Next، بین استفاده از OverlayFS به جای Magic Mount یکی را انتخاب کنید.</string>
   <string name="reboot_required">راه‌اندازی مجدد مورد نیاز است</string>
   <string name="reboot_message">تغییرات پس از راه‌اندازی مجدد سیستم اعمال می‌شوند. آیا می‌خواهید اکنون سیستم را مجدداً راه‌اندازی کنید؟</string>
   <string name="module_restore">بازیابی ماژول</string>
@@ -104,7 +98,6 @@
   <string name="proceed">ادامه</string>
   <string name="cancel">لغو</string>
   <string name="later">بعداً</string>
-  <string name="lkm_warning_message">پچ LKM به اجزای متن‌باز وابسته است. آیا می‌خواهید ادامه دهید؟</string>
   <string name="home_next_kernelsu">🔥 نسخه بعدی</string>
   <string name="home_next_kernelsu_repo">https://github.com/KernelSU-Next/KernelSU-Next</string>
   <string name="home_next_kernelsu_body">شاخه آزمایشی بعدی. آن را در گیت‌هاب بررسی کنید!</string>
@@ -132,8 +125,6 @@
   <string name="require_kernel_version">نسخه فعلی KernelSU Next %1$d برای عملکرد صحیح مدیریت، بسیار ضعیف است. لطفاً به نسخه %2$d یا بالاتر ارتقا دهید!</string>
   <string name="settings_umount_modules_default">ماژول‌های نصب‌شده</string>
   <string name="settings_umount_modules_default_summary">مقدار پیش‌فرض جهانی برای \"ماژول‌های نصب‌شده\" در پروفایل برنامه. در صورت فعال بودن، تمام تغییرات ماژول در سیستم را برای برنامه‌هایی که مجموعه پروفایل ندارند، حذف می‌کند.</string>
-  <string name="settings_susfs_toggle">هوک kprobes را مخفی کنید</string>
-  <string name="settings_susfs_toggle_summary">این گزینه هوک kprobes ایجاد شده توسط ksu را غیرفعال می‌کند و در عوض، هوک non-kprobes تعبیه شده را فعال می‌کند و همان عملکردی را که برای یک کرنل غیر GKI اعمال می‌شود، پیاده‌سازی می‌کند، کرنلی که از kprobe پشتیبانی نمی‌کند.</string>
   <string name="profile_umount_modules_summary">فعال کردن این گزینه به KernelSU Next اجازه می‌دهد تا هرگونه فایل تغییر یافته توسط ماژول‌های این برنامه را بازیابی کند.</string>
   <string name="profile_selinux_domain">دامنه</string>
   <string name="profile_selinux_rules">قوانین</string>
@@ -142,7 +133,7 @@
   <string name="module_updated">بروزرسانی شده</string>
   <string name="module_downloading">درحال دانلود ماژول: %s</string>
   <string name="module_start_downloading">شروع دانلود: %s</string>
-  <string name="new_version_available">نسخه جدید %s در دسترس است، برای ارتقا کلیک کنید.</string>
+  <string name="new_version_available">نسخه جدید %1$s (%2$d) در دسترس است، برای ارتقا کلیک کنید.</string>
   <string name="launch_app">اجرا</string>
   <string name="close">بستن</string>
   <string name="force_stop_app">توقف اجباری</string>
@@ -191,7 +182,6 @@
   <string name="install_next">بعدی</string>
   <string name="select_file_tip">تصویر پارتیشن %1$s توصیه می‌شود</string>
   <string name="select_kmi">انتخاب KMI</string>
-  <string name="shrink_sparse_image">تصویر پراکنده را به حداقل برسانید</string>
   <string name="settings_uninstall">حذف نصب</string>
   <string name="settings_uninstall_temporary">حذف نصب موقت</string>
   <string name="settings_uninstall_permanent">حذف نصب دائم</string>
@@ -229,7 +219,6 @@
   <string name="module_sort_action_first">Sort (Action first)</string>
   <string name="module_sort_webui_first">Sort (WebUI first)</string>
   <string name="settings_global_namespace_mode_summary">All root sessions use the global mount namespace</string>
-  <string name="shrink_sparse_image_message">Resize the sparse image where the module is located to its actual size. Note that this may cause the module to work abnormally, so please only use when necessary (such as for backup).</string>
   <string name="settings_uninstall_permanent_message">Uninstalling KernelSU Next (root and all modules) completely and permanently.</string>
   <string name="settings_restore_stock_image_message">Restore the stock factory image (if a backup exists), usually used before OTA; if you need to uninstall KernelSU Next, please use \"Uninstall permanently\".</string>
   <string name="settings_disable_su_summary">Temporarily disable the ability of any app to gain root privileges via the ⁠su command (existing root processes won\'t be affected).</string>

@@ -1,6 +1,8 @@
 #include <jni.h>
 
 #include <sys/prctl.h>
+#include <linux/capability.h>
+#include <pwd.h>
 
 #include <android/log.h>
 #include <cstring>
@@ -15,25 +17,21 @@
 #endif
 
 extern "C"
-JNIEXPORT jboolean JNICALL
-Java_com_rifsxd_ksunext_Natives_becomeManager(JNIEnv *env, jobject, jstring pkg) {
-    auto cpkg = env->GetStringUTFChars(pkg, nullptr);
-    auto result = become_manager(cpkg);
-    env->ReleaseStringUTFChars(pkg, cpkg);
-    return result;
-}
-
-extern "C"
 JNIEXPORT jint JNICALL
 Java_com_rifsxd_ksunext_Natives_getVersion(JNIEnv *env, jobject) {
-    return get_version();
+    int version = get_version();
+    if (version > 0) {
+        return version;
+    }
+    // try legacy method as fallback
+    return legacy_get_info().first;
 }
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_rifsxd_ksunext_Natives_getManagerUid(JNIEnv *env, jobject) {
-    uid_t manager_uid = get_manager_uid();
-    return (jint)manager_uid;
+Java_com_rifsxd_ksunext_Natives_getManagerAppid(JNIEnv *env, jobject) {
+    uid_t appid = get_manager_appid();
+    return (jint)appid;
 }
 
 extern "C"
@@ -53,13 +51,11 @@ Java_com_rifsxd_ksunext_Natives_getVersionTag(JNIEnv *env, jobject) {
 extern "C"
 JNIEXPORT jintArray JNICALL
 Java_com_rifsxd_ksunext_Natives_getAllowList(JNIEnv *env, jobject) {
-    int uids[1024];
-    int size = 0;
-    bool result = get_allow_list(uids, &size);
-    LOGD("getAllowList: %d, size: %d", result, size);
+    struct ksu_get_allow_list_cmd cmd = {};
+    bool result = get_allow_list(&cmd);
     if (result) {
-        auto array = env->NewIntArray(size);
-        env->SetIntArrayRegion(array, 0, size, uids);
+        auto array = env->NewIntArray(cmd.count);
+        env->SetIntArrayRegion(array, 0, cmd.count, reinterpret_cast<const jint *>(cmd.uids));
         return array;
     }
     return env->NewIntArray(0);
@@ -75,6 +71,12 @@ extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_rifsxd_ksunext_Natives_isLkmMode(JNIEnv *env, jclass clazz) {
     return is_lkm_mode();
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_isManager(JNIEnv *env, jclass clazz) {
+    return is_manager();
 }
 
 static void fillIntArray(JNIEnv *env, jobject list, int *data, int count) {
@@ -152,7 +154,7 @@ Java_com_rifsxd_ksunext_Natives_getAppProfile(JNIEnv *env, jobject, jstring pkg,
     strcpy(profile.key, key);
     profile.current_uid = uid;
 
-    bool useDefaultProfile = !get_app_profile(key, &profile);
+    bool useDefaultProfile = get_app_profile(&profile) != 0;
 
     auto cls = env->FindClass("com/rifsxd/ksunext/Natives$Profile");
     auto constructor = env->GetMethodID(cls, "<init>", "()V");
@@ -196,7 +198,7 @@ Java_com_rifsxd_ksunext_Natives_getAppProfile(JNIEnv *env, jobject, jstring pkg,
         env->SetBooleanField(obj, rootUseDefaultField, (jboolean) profile.rp_config.use_default);
         if (strlen(profile.rp_config.template_name) > 0) {
             env->SetObjectField(obj, rootTemplateField,
-                                env->NewStringUTF(profile.rp_config.template_name));
+                    env->NewStringUTF(profile.rp_config.template_name));
         }
 
         env->SetIntField(obj, uidField, profile.rp_config.profile.uid);
@@ -218,12 +220,12 @@ Java_com_rifsxd_ksunext_Natives_getAppProfile(JNIEnv *env, jobject, jstring pkg,
         }
 
         env->SetObjectField(obj, domainField,
-                            env->NewStringUTF(profile.rp_config.profile.selinux_domain));
+                env->NewStringUTF(profile.rp_config.profile.selinux_domain));
         env->SetIntField(obj, namespacesField, profile.rp_config.profile.namespaces);
         env->SetBooleanField(obj, allowSuField, profile.allow_su);
     } else {
         env->SetBooleanField(obj, nonRootUseDefaultField,
-                             (jboolean) profile.nrp_config.use_default);
+                (jboolean) profile.nrp_config.use_default);
         env->SetBooleanField(obj, umountModulesField, profile.nrp_config.profile.umount_modules);
     }
 
@@ -336,4 +338,37 @@ extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_rifsxd_ksunext_Natives_isZygiskEnabled(JNIEnv *env, jobject) {
     return is_zygisk_enabled();
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_isKernelUmountEnabled(JNIEnv *env, jobject thiz) {
+    return is_kernel_umount_enabled();
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_setKernelUmountEnabled(JNIEnv *env, jobject thiz, jboolean enabled) {
+    return set_kernel_umount_enabled(enabled);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_isAvcSpoofEnabled(JNIEnv *env, jobject thiz) {
+    return is_avc_spoof_enabled();
+}
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_rifsxd_ksunext_Natives_setAvcSpoofEnabled(JNIEnv *env, jobject thiz, jboolean enabled) {
+    return set_avc_spoof_enabled(enabled);
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_rifsxd_ksunext_Natives_getUserName(JNIEnv *env, jobject thiz, jint uid) {
+    struct passwd *pw = getpwuid((uid_t) uid);
+    if (pw && pw->pw_name && pw->pw_name[0] != '\0') {
+        return env->NewStringUTF(pw->pw_name);
+    }
+    return nullptr;
 }

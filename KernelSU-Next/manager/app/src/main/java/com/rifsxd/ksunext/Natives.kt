@@ -17,20 +17,7 @@ object Natives {
     // 10977: change groups_count and groups to avoid overflow write
     // 11071: Fix the issue of failing to set a custom SELinux type.
     // 12797: zygisk query and get manager uid.
-    const val MINIMAL_SUPPORTED_KERNEL = 12797
-
-    // 11640: Support query working mode, LKM or GKI
-    // when MINIMAL_SUPPORTED_KERNEL > 11640, we can remove this constant.
-    const val MINIMAL_SUPPORTED_KERNEL_LKM = 12797
-
-    // 12404: Support disable sucompat mode
-    const val MINIMAL_SUPPORTED_SU_COMPAT = 12404
-
-    // 12569: support get hook mode
-    const val MINIMAL_SUPPORTED_HOOK_MODE = 12569
-
-    // 12750: support get manager UID
-    const val MINIMAL_SUPPORTED_MANAGER_UID = 12751
+    const val MINIMAL_SUPPORTED_KERNEL = 22000
 
     const val KERNEL_SU_DOMAIN = "u:r:su:s0"
 
@@ -41,8 +28,6 @@ object Natives {
         System.loadLibrary("kernelsu")
     }
 
-    // become root manager, return true if success.
-    external fun becomeManager(pkg: String?): Boolean
     val version: Int
         external get
 
@@ -56,13 +41,16 @@ object Natives {
     val isLkmMode: Boolean
         external get
 
+    val isManager: Boolean
+        external get
+
     external fun uidShouldUmount(uid: Int): Boolean
 
     /**
      * Get the UID of the current root manager.
      * @return manager UID, or 0 if unavailable.
      */
-    external fun getManagerUid(): Int
+    external fun getManagerAppid(): Int
 
     /**
      * Get a string indicating the SU hook mode enabled in kernel.
@@ -102,6 +90,29 @@ object Natives {
     external fun isSuEnabled(): Boolean
     external fun setSuEnabled(enabled: Boolean): Boolean
 
+    /**
+     * Kernel module umount can be disabled temporarily.
+     *  0: disabled
+     *  1: enabled
+     *  negative : error
+     */
+    external fun isKernelUmountEnabled(): Boolean
+    external fun setKernelUmountEnabled(enabled: Boolean): Boolean
+
+    /**
+     * Get the user name for the uid.
+     */
+    external fun getUserName(uid: Int): String?
+
+    /**
+     * Avc spoof can be enabled/disabled.
+     *  0: disabled
+     *  1: enabled
+     *  negative : error
+     */
+    external fun isAvcSpoofEnabled(): Boolean
+    external fun setAvcSpoofEnabled(enabled: Boolean): Boolean
+
     private const val NON_ROOT_DEFAULT_PROFILE_KEY = "$"
     private const val NOBODY_UID = 9999
 
@@ -123,11 +134,10 @@ object Natives {
     }
 
     fun requireNewKernel(): Boolean {
-        return version < MINIMAL_SUPPORTED_KERNEL
+        return version != -1 && version < MINIMAL_SUPPORTED_KERNEL
     }
 
     val KSU_WORK_DIR = "/data/adb/ksu/"
-    val GLOBAL_NAMESPACE_FILE = KSU_WORK_DIR + ".global_mnt"
 
     @Immutable
     @Parcelize
