@@ -1,3 +1,4 @@
+#include <linux/version.h>
 #include <linux/dcache.h>
 #include <linux/errno.h>
 #include <linux/fdtable.h>
@@ -6,14 +7,27 @@
 #include <linux/fs_struct.h>
 #include <linux/limits.h>
 #include <linux/namei.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 #include <linux/proc_ns.h>
+#else
+#include <linux/proc_fs.h>
+#endif
 #include <linux/pid.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/sched/task.h>
+#else
+#include <linux/sched.h>
+#endif
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 #include <linux/task_work.h>
-#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 #include <uapi/linux/mount.h>
+#else
+#include <uapi/linux/fs.h>
+#endif
+#endif
 
 #include "arch.h"
 #include "klog.h" // IWYU pragma: keep
@@ -24,10 +38,13 @@ extern int path_mount(const char *dev_name, struct path *path,
                       const char *type_page, unsigned long flags,
                       void *data_page);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 #if defined(__aarch64__)
 extern long __arm64_sys_setns(const struct pt_regs *regs);
 #elif defined(__x86_64__)
 extern long __x64_sys_setns(const struct pt_regs *regs);
+#elif defined(__arm__) // https://syscalls.mebeim.net/?table=arm/32/eabi/latest
+extern long sys_setns(const struct pt_regs *regs);
 #endif
 
 static long ksu_sys_setns(int fd, int flags)
@@ -42,12 +59,31 @@ static long ksu_sys_setns(int fd, int flags)
     return __arm64_sys_setns(&regs);
 #elif defined(__x86_64__)
     return __x64_sys_setns(&regs);
+#elif defined(__arm__)
+	return sys_setns(&regs);
 #else
-#error "Unsupported arch"
+	return -ENOSYS;
 #endif
 }
 
-// global mode , need CAP_SYS_ADMIN and CAP_SYS_CHROOT to perform setns
+static int ksu_sys_unshare(unsigned long flags)
+{
+	return ksys_unshare(flags);
+}
+
+#else
+static long ksu_sys_setns(int fd, int nstype)
+{
+	return sys_setns(fd, nstype);
+}
+
+static long ksu_sys_unshare(unsigned long flags)
+{
+	return sys_unshare(flags);
+}
+#endif
+
+// global mode, need CAP_SYS_ADMIN and CAP_SYS_CHROOT to perform setns
 static void ksu_mnt_ns_global(void)
 {
     // save current working directory as absolute path before setns
@@ -117,10 +153,10 @@ try_setns:
     fd_install(fd, ns_file);
     ret = ksu_sys_setns(fd, CLONE_NEWNS);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
-    ksys_close(fd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+	close_fd(fd);
 #else
-    close_fd(fd);
+	__close_fd(current->files, fd);
 #endif
 
     if (ret) {
@@ -145,7 +181,7 @@ out:
 // individual mode , need CAP_SYS_ADMIN to perform unshare and remount
 static void ksu_mnt_ns_individual(void)
 {
-    long ret = ksys_unshare(CLONE_NEWNS);
+    long ret = ksu_sys_unshare(CLONE_NEWNS);
     if (ret) {
         pr_warn("call ksys_unshare failed: %ld\n", ret);
         return;

@@ -14,7 +14,20 @@
 #include "ksu.h"
 #include "file_wrapper.h"
 
-struct cred *ksu_cred;
+struct cred* ksu_cred;
+
+extern void __init ksu_lsm_hook_init(void);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+					void *argv, void *envp, int *flags);
+extern int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+				    void *argv, void *envp, int *flags);
+int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+			void *envp, int *flags)
+{
+	ksu_handle_execveat_ksud(fd, filename_ptr, argv, envp, flags);
+	return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
+					    flags);
+}
 
 int __init kernelsu_init(void)
 {
@@ -39,13 +52,15 @@ int __init kernelsu_init(void)
 
 	ksu_syscall_hook_manager_init();
 
+	ksu_lsm_hook_init();
+
 	ksu_allowlist_init();
 
 	ksu_throne_tracker_init();
 
 	ksu_ksud_init();
 
-    ksu_file_wrapper_init();
+	ksu_file_wrapper_init();
 
 #ifdef MODULE
 #ifndef CONFIG_KSU_DEBUG

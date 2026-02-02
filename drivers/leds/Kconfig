@@ -817,7 +817,7 @@ config LEDS_QPNP_VIBRATOR_PWM
 	  The vibrator-pwm peripheral is capable of driving LAR vibrators.
 
 config LEDS_SPES
-        tristate "Flashlight GPIO driver'
+        tristate "Flashlight GPIO driver"
         depends on LEDS_CLASS
         default y
 

@@ -142,4 +142,4 @@ arch/arm64/boot/dts/vendor/
 out/
 tc/
 *.zip
-log.txt
+*.txt

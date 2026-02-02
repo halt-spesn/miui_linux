@@ -9,6 +9,11 @@
 void ksu_syscall_hook_manager_init(void);
 void ksu_syscall_hook_manager_exit(void);
 
+// extras.c
+void ksu_avc_spoof_init(void);
+void ksu_avc_spoof_exit(void);
+
+#ifdef KSU_KPROBES_HOOK
 // Process marking for tracepoint
 void ksu_mark_all_process(void);
 void ksu_unmark_all_process(void);
@@ -17,10 +22,6 @@ void ksu_mark_running_process(void);
 // Per-task mark operations
 int ksu_get_task_mark(pid_t pid);
 int ksu_set_task_mark(pid_t pid, bool mark);
-
-// extras.c
-void ksu_avc_spoof_init(void);
-void ksu_avc_spoof_exit(void);
 
 static inline void ksu_set_task_tracepoint_flag(struct task_struct *t)
 {
@@ -41,5 +42,7 @@ static inline void ksu_clear_task_tracepoint_flag(struct task_struct *t)
 }
 
 void ksu_clear_task_tracepoint_flag_if_needed(struct task_struct *t);
+
+#endif
 
 #endif
