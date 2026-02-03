@@ -578,9 +578,14 @@ static int cam_flash_low(
 #ifdef CONFIG_CAMERA_FLASH_SPES
 	CAM_INFO(CAM_FLASH, "Flash low Triggered flash_now %d with value 1", mgpio_flash_led.flash_now);
 	rc = cam_res_mgr_gpio_request(soc_info.dev, mgpio_flash_led.flash_now, 0, "CUSTOM_GPIO1");
-	if(rc) {
-		CAM_ERR(CAM_FLASH, "gpio %d request fails", rc);
-		return rc;
+	if (rc) {
+		/*
+		 * GPIO 1252 (flash_now) may be held by another driver on first boot.
+		 * Ignore failure and try to set the value anyway - it will work
+		 * on subsequent attempts once the GPIO is released.
+		 */
+		CAM_WARN(CAM_FLASH, "gpio %d request fails (may work on retry)", mgpio_flash_led.flash_now);
+		rc = 0;
 	}
 
 	cam_res_mgr_gpio_set_value(mgpio_flash_led.flash_now, 1);
@@ -619,9 +624,14 @@ static int cam_flash_high(
 #ifdef CONFIG_CAMERA_FLASH_SPES
 	CAM_INFO(CAM_FLASH, "Flash high Triggered flash_en %d with value 1", mgpio_flash_led.flash_en);
 	rc = cam_res_mgr_gpio_request(soc_info.dev, mgpio_flash_led.flash_en, 0, "CUSTOM_GPIO1");
-	if(rc) {
-		CAM_ERR(CAM_FLASH, "gpio %d request fails", rc);
-		return rc;
+	if (rc) {
+		/*
+		 * GPIO (flash_en) may be held by another driver on first boot.
+		 * Ignore failure and try to set the value anyway - it will work
+		 * on subsequent attempts once the GPIO is released.
+		 */
+		CAM_WARN(CAM_FLASH, "gpio %d request fails (may work on retry)", mgpio_flash_led.flash_en);
+		rc = 0;
 	}
 
 	cam_res_mgr_gpio_set_value(mgpio_flash_led.flash_en, 1);

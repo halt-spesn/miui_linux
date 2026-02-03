@@ -96,14 +96,14 @@ static int bq2589x_set_fast_charge_mode(struct bq2589x *bq, int pd_active)
 		return -ENOENT;
 	}
 
-	/*If TA plug in with PPS, battery auth success and soc less than 95%, FFC flag will enabled.
+	/*If TA plug in with PPS and battery auth success, FFC flag will enabled.
 		The temp is normal set fastcharge mode as 1 and jeita loop also handle fastcharge prop*/
 	//pr_info("batt_verify: %d, batt_soc: %d, batt_temp: %d\n", batt_verify, batt_soc, batt_temp);
-	if ((pd_active == 2) && batt_verify && batt_soc < 95) {
+	if ((pd_active == 2) && batt_verify) {
 		g_ffc_disable = false;
 		propval.intval = (batt_temp >= 150 && batt_temp <= 480) ? 1 : 0;
 	} else {
-		/*If TA plug in without PPS, battery auth fail and soc exceed 95%, FFC will always be disabled*/
+		/*If TA plug in without PPS or battery auth fail, FFC will always be disabled*/
 		propval.intval = 0;
 		g_ffc_disable = true;
 	}
@@ -1750,7 +1750,7 @@ static void bq2589x_check_pe_tuneup_workfunc(struct work_struct *work)
 	bq->vbat_volt = bq2589x_adc_read_battery_volt(bq);
 	bq->rsoc = bq2589x_read_batt_rsoc(bq);
 
-	if (bq->vbat_volt > pe.vbat_min_volt && bq->rsoc < 95) {
+	if (bq->vbat_volt > pe.vbat_min_volt) {
 		pe.target_volt = pe.high_volt_level;
 		pe.tune_up_volt = true;
 		pe.tune_down_volt = false;
@@ -1758,8 +1758,6 @@ static void bq2589x_check_pe_tuneup_workfunc(struct work_struct *work)
 		pe.tune_count = 0;
 		pe.tune_fail = false;
 		schedule_delayed_work(&bq->pe_volt_tune_work, 0);
-	} else if (bq->rsoc >= 95) {
-		schedule_delayed_work(&bq->ico_work, 0);
 	} else {
 		/* wait battery voltage up enough to check again */
 		schedule_delayed_work(&bq->check_pe_tuneup_work, 2 * HZ);
@@ -1848,6 +1846,21 @@ static void bq2589x_usb_changed_workfunc(struct work_struct *work)
 
 	if (!bq->usb_psy)
 		bq->usb_psy = power_supply_get_by_name("usb");
+
+	/* Retry setting charger type if USB psy is now available but type wasn't set */
+	if (bq->usb_psy && bq->chg_type != POWER_SUPPLY_TYPE_UNKNOWN) {
+		ret = power_supply_get_property(bq->usb_psy, POWER_SUPPLY_PROP_REAL_TYPE, &val);
+		if (ret >= 0 && val.intval == POWER_SUPPLY_TYPE_UNKNOWN) {
+			/* USB psy exists but type not set - retry setting it */
+			val.intval = bq->chg_type;
+			ret = power_supply_set_property(bq->usb_psy, POWER_SUPPLY_PROP_REAL_TYPE, &val);
+			if (ret >= 0) {
+				bq_dbg(PR_OEM, "retry set charger type: %d success\n", bq->chg_type);
+				power_supply_changed(bq->usb_psy);
+			}
+		}
+	}
+
 	if (notify_count < NOTIFY_COUNT_MAX) {
 		if (bq->usb_psy) {
 			ret = power_supply_get_property(bq->usb_psy, POWER_SUPPLY_PROP_REAL_TYPE, &val);
