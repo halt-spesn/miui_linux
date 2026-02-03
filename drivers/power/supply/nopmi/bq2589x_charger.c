@@ -1603,7 +1603,7 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 	case BQ2589X_VBUS_USB_CDP:
 		bq_dbg(PR_OEM, "charger_type: CDP\n");
 		vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1500);
-		//msleep(1000);
+		msleep(1000);
 		bq2589x_usb_switch(bq, false);
 		break;
 	case BQ2589X_VBUS_USB_SDP:
@@ -1627,6 +1627,7 @@ static void bq2589x_adapter_in_workfunc(struct work_struct *work)
 		} else {
 			vote(bq->usb_icl_votable, PROFILE_CHG_VOTER, true, 1500);
 		}
+		msleep(1000);
 		bq2589x_usb_switch(bq, false);
 		break;
 	case BQ2589X_VBUS_NONSTAND:

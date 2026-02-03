@@ -253,7 +253,6 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 	struct sw_jeita_data *sw_jeita = nopmi_chg_jeita->sw_jeita;
 	union power_supply_propval prop = {0, };
 	static int fast_charge_mode = 0;
-	static int batt_cap = 0;
 	struct power_supply *sc8551_psy;
 	union power_supply_propval pval = {0, };
 	int sc8551_charge_enable_flag = 0; //this flag used by jeta:nopmi_chg_jeita.c to set sw_chip fv && used by fg_chip do another soc
@@ -396,17 +395,6 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 		fast_charge_mode = prop.intval;
 	}
 
-	if (!nopmi_chg_jeita->batt_psy)
-		nopmi_chg_jeita->batt_psy = power_supply_get_by_name("battery");
-	if (nopmi_chg_jeita->batt_psy) {
-		ret = power_supply_get_property(nopmi_chg_jeita->batt_psy,
-				POWER_SUPPLY_PROP_CAPACITY, &prop);
-		if (ret < 0) {
-			pr_err("get batt cap fail\n");
-		}
-		batt_cap = prop.intval;
-	}
-
 	if (!g_ffc_disable && fast_charge_mode && (sw_jeita->sm != TEMP_T2_TO_T3)) {
 		prop.intval = 0;
 		fast_charge_mode = 0;
@@ -443,14 +431,12 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 			sw_jeita->cv = nopmi_chg_jeita->dt.normal_charge_voltage;
 	} else {
 		sw_jeita->cv = nopmi_chg_jeita->dt.normal_charge_voltage;
-		if (fast_charge_mode && !g_ffc_disable && batt_cap < 95) {
+		if (fast_charge_mode && !g_ffc_disable) {
 			if (NOPMI_CHARGER_IC_MAXIM == nopmi_get_charger_ic_type()) {
 				sw_jeita->cv = 4470;
 			} else {
 				sw_jeita->cv = 4480;
 			}
-		} else {
-			sw_jeita->cv = 4450;
 		}
 	}
 
@@ -468,15 +454,10 @@ static void nopmi_chg_handle_jeita_current(struct nopmi_chg_jeita_st *nopmi_chg_
 		pr_err("bq2589x_charger: sc8551_psy = power_supply_get_by_name(sc8551-standalone) error.\n");
 	}
 
-	if (sc8551_charge_enable_flag && batt_cap < 95) {
+	if (sc8551_charge_enable_flag) {
 		if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
 			pr_info("bq2589x_charger: sc8551_psy: sw_jeita->cv = 4608.\n");
 			sw_jeita->cv = 4608;
-		}
-	} else {
-		if (NOPMI_CHARGER_IC_MAXIM != nopmi_get_charger_ic_type()) {
-			pr_info("bq2589x_charger: sc8551_psy: charge_full, set normal_cv\n");
-			sw_jeita->cv = 4450;
 		}
 	}
 
