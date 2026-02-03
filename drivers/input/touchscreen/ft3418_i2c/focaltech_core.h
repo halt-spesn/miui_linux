@@ -194,6 +194,7 @@ struct fts_ts_data {
     bool pm_suspend;
 #endif
     bool suspended;
+    bool gesture_suspend;   /* track if suspended in gesture mode for proper resume */
     bool fw_loading;
     bool irq_disabled;
     bool irq_wake_enabled;  /* track IRQ wake state to avoid unbalanced enable/disable */

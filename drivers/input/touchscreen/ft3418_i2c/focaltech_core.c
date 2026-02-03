@@ -1572,6 +1572,7 @@ static int fts_ts_suspend(struct device *dev)
                 }
             }
         fts_gesture_suspend(ts_data);
+        ts_data->gesture_suspend = true;
     	} else if (ts_data->aod_changed) {
 		if (!IS_ERR_OR_NULL(ts_data->vcc_i2c)) {
                 ret = regulator_enable(ts_data->vcc_i2c);
@@ -1580,8 +1581,10 @@ static int fts_ts_suspend(struct device *dev)
                 }
             }
         fts_gesture_suspend(ts_data);
+        ts_data->gesture_suspend = true;
         } else {
         fts_irq_disable();
+        ts_data->gesture_suspend = false;
 
         FTS_INFO("make TP enter into sleep mode");
         ret = fts_write_reg(FTS_REG_POWER_MODE, FTS_REG_POWER_MODE_SLEEP);
@@ -1632,7 +1635,7 @@ static int fts_ts_resume(struct device *dev)
     fts_esdcheck_resume();
 #endif
 
-    if (ts_data->gesture_mode || ts_data->aod_changed) {
+    if (ts_data->gesture_suspend) {
         fts_gesture_resume(ts_data);
     } else {
         fts_irq_enable();
