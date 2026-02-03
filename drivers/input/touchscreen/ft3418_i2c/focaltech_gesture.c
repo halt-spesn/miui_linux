@@ -398,8 +398,12 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
     u8 state = 0xFF;
 
     FTS_FUNC_ENTER();
-    if (enable_irq_wake(ts_data->irq)) {
-        FTS_DEBUG("enable_irq_wake(irq:%d) fail", ts_data->irq);
+    if (!ts_data->irq_wake_enabled) {
+        if (enable_irq_wake(ts_data->irq)) {
+            FTS_DEBUG("enable_irq_wake(irq:%d) fail", ts_data->irq);
+        } else {
+            ts_data->irq_wake_enabled = true;
+        }
     }
 
     for (i = 0; i < 5; i++) {
@@ -431,8 +435,12 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
     u8 state = 0xFF;
 
     FTS_FUNC_ENTER();
-    if (disable_irq_wake(ts_data->irq)) {
-        FTS_DEBUG("disable_irq_wake(irq:%d) fail", ts_data->irq);
+    if (ts_data->irq_wake_enabled) {
+        if (disable_irq_wake(ts_data->irq)) {
+            FTS_DEBUG("disable_irq_wake(irq:%d) fail", ts_data->irq);
+        } else {
+            ts_data->irq_wake_enabled = false;
+        }
     }
 
     for (i = 0; i < 5; i++) {

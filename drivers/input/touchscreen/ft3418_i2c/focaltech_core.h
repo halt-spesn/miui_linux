@@ -196,6 +196,7 @@ struct fts_ts_data {
     bool suspended;
     bool fw_loading;
     bool irq_disabled;
+    bool irq_wake_enabled;  /* track IRQ wake state to avoid unbalanced enable/disable */
     bool power_disabled;
     bool glove_mode;
     bool cover_mode;

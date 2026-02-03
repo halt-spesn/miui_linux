@@ -1632,7 +1632,7 @@ static int fts_ts_resume(struct device *dev)
     fts_esdcheck_resume();
 #endif
 
-    if (ts_data->gesture_mode) {
+    if (ts_data->gesture_mode || ts_data->aod_changed) {
         fts_gesture_resume(ts_data);
     } else {
         fts_irq_enable();
