@@ -2257,9 +2257,8 @@ static void bq2589x_charger_irq_workfunc(struct work_struct *work)
 		bq->vbus_type = BQ2589X_VBUS_NONE;
 
 	chg_type = bq2589x_get_charger_type(bq);
-	if (bq->vbus_type == BQ2589X_VBUS_USB_CDP || bq->vbus_type == BQ2589X_VBUS_USB_SDP) {
-		bq2589x_usb_switch(bq, false);
-	}
+	/* Note: USB switch for SDP/CDP is handled in bq2589x_adapter_in_workfunc
+	 * with proper delay to allow USB controller to initialize first */
 
 	if ((bq->vbus_type == BQ2589X_VBUS_NONSTAND || bq->vbus_type == BQ2589X_VBUS_UNKNOWN)) {
 		//bq2589x_usb_switch(bq, true);
