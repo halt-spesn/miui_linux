@@ -29,14 +29,13 @@
 #include <linux/delay.h>
 #include <linux/atomic.h>
 #include <linux/sched.h>
-#include <uapi/linux/sched/types.h>
 #include <linux/ktime.h>
 
-#define PWM_PERIOD_NS	  100000	/* 10 kHz  (100 µs period) */
-#define MIN_PULSE_NS	  5000		/* 5 µs floor */
+#define PWM_PERIOD_US	  100		/* 10 kHz  (100 µs period) */
+#define MIN_PULSE_US	  5		/* 5 µs floor */
 #define BURST_THRESHOLD	  250		/* brightness >= this enters burst */
-#define BURST_RETRIG_MS	  400		/* re-trigger before ~500ms decay */
-#define BURST_LOW_US	  2000		/* 2ms low pulse to create rising edge */
+#define BURST_RETRIG_MS	  350		/* re-trigger before ~500ms decay */
+#define BURST_LOW_MS	  10		/* 10ms low pulse — SPMI needs time */
 
 static int gpio_enf = -1;	/* ENF — flash enable (pm6125_gpios 2) */
 static int gpio_enm = -1;	/* ENM — torch/movie  (tlmm 85)       */
@@ -44,31 +43,18 @@ static bool enf_available;
 static atomic_t target_brightness = ATOMIC_INIT(0);
 static struct task_struct *pwm_thread;
 
-/* ---- precise sleep: busy-spin for short intervals ---- */
-static void precise_sleep_ns(s64 ns)
-{
-	ktime_t target;
-
-	if (ns <= 0)
-		return;
-	target = ktime_add_ns(ktime_get(), ns);
-	while (ktime_before(ktime_get(), target))
-		cpu_relax();
-}
-
 /* ---- software PWM kernel thread ---- */
 
 static int pwm_thread_fn(void *data)
 {
-	struct sched_param param = { .sched_priority = 50 };
 	ktime_t last_enf_trigger = 0;
 
-	sched_setscheduler(current, SCHED_FIFO, &param);
+	/* Elevated but not RT — avoids starving system processes */
+	set_user_nice(current, -20);
 
 	while (!kthread_should_stop()) {
 		int br = atomic_read(&target_brightness);
-		s64 on_ns, off_ns;
-		ktime_t cycle_start;
+		long on_us, off_us;
 
 		/* --- OFF: all pins low, sleep until woken --- */
 		if (br == 0) {
@@ -91,21 +77,23 @@ static int pwm_thread_fn(void *data)
 			if (last_enf_trigger == 0 ||
 			    ktime_ms_delta(ktime_get(), last_enf_trigger)
 			    >= BURST_RETRIG_MS) {
-				/* Pull ENF low briefly to create a fresh rising edge */
+				/*
+				 * Pull ENF low long enough for the IC to
+				 * fully reset, then re-trigger with rising edge.
+				 */
 				gpio_set_value(gpio_enf, 0);
-				usleep_range(BURST_LOW_US, BURST_LOW_US + 500);
+				msleep(BURST_LOW_MS);
 				gpio_set_value(gpio_enf, 1);
 				last_enf_trigger = ktime_get();
 			}
 
 			/* Sleep a bit, then re-check brightness */
-			usleep_range(10000, 15000);	/* 10–15 ms */
+			usleep_range(20000, 25000);
 			continue;
 		}
 
 		/* --- MAX torch (no burst available): ENM steady on --- */
 		if (br >= BURST_THRESHOLD) {
-			/* enf_available == false, just max torch */
 			gpio_set_value(gpio_enm, 1);
 			set_current_state(TASK_INTERRUPTIBLE);
 			if (atomic_read(&target_brightness) >= BURST_THRESHOLD &&
@@ -121,28 +109,21 @@ static int pwm_thread_fn(void *data)
 		last_enf_trigger = 0;
 
 		/* --- PWM range (1–249) --- */
-		on_ns = PWM_PERIOD_NS * br / (BURST_THRESHOLD - 1);
-		off_ns = PWM_PERIOD_NS - on_ns;
+		on_us = PWM_PERIOD_US * br / (BURST_THRESHOLD - 1);
+		off_us = PWM_PERIOD_US - on_us;
 
-		if (on_ns < MIN_PULSE_NS)
-			on_ns = MIN_PULSE_NS;
-		if (off_ns < MIN_PULSE_NS)
-			off_ns = MIN_PULSE_NS;
-
-		cycle_start = ktime_get();
+		if (on_us < MIN_PULSE_US)
+			on_us = MIN_PULSE_US;
+		if (off_us < MIN_PULSE_US)
+			off_us = MIN_PULSE_US;
 
 		/* High phase */
 		gpio_set_value(gpio_enm, 1);
-		precise_sleep_ns(on_ns);
+		usleep_range(on_us, on_us + 10);
 
 		/* Low phase */
 		gpio_set_value(gpio_enm, 0);
-
-		/* Compensate: subtract time already elapsed beyond on_ns */
-		off_ns -= (ktime_to_ns(ktime_sub(ktime_get(), cycle_start))
-			   - on_ns);
-		if (off_ns > 0)
-			precise_sleep_ns(off_ns);
+		usleep_range(off_us, off_us + 10);
 	}
 
 	if (enf_available)
