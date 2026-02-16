@@ -4976,10 +4976,67 @@ int dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf)
 
 int dsi_panel_disp_param_send(struct dsi_display *display, int cmd)
 {
+	int rc = 0;
+	struct dsi_panel *panel;
+	bool handled = false;
+
 	if (!display || !display->panel)
 		return -EINVAL;
 
-	return dsi_panel_tx_cmd_set(display->panel, cmd);
+	panel = display->panel;
+
+	/*
+	 * Xiaomi displayfeature HAL sends bitmask-encoded command codes
+	 * (e.g. 0x0C0000 for sunlight HBM) via the disp_param sysfs node.
+	 * These are NOT dsi_cmd_set_type enum values and must be translated
+	 * before indexing into cmd_sets[]. Passing them raw causes an
+	 * out-of-bounds access and kernel panic.
+	 *
+	 * HBM control nibble: bits 16-19 (cmd & 0x0F0000)
+	 */
+	switch (cmd & 0x0F0000) {
+	case 0x020000: /* HBM ON */
+		DSI_INFO("disp_param: HBM ON (cmd=0x%x)\n", cmd);
+		mutex_lock(&panel->panel_lock);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_ON);
+		mutex_unlock(&panel->panel_lock);
+		handled = true;
+		break;
+	case 0x010000: /* HBM OFF */
+		DSI_INFO("disp_param: HBM OFF (cmd=0x%x)\n", cmd);
+		mutex_lock(&panel->panel_lock);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_OFF);
+		mutex_unlock(&panel->panel_lock);
+		handled = true;
+		break;
+	case 0x0C0000: /* Sunlight / auto HBM */
+		DSI_INFO("disp_param: sunlight HBM (cmd=0x%x)\n", cmd);
+		mutex_lock(&panel->panel_lock);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_ON);
+		mutex_unlock(&panel->panel_lock);
+		handled = true;
+		break;
+	default:
+		break;
+	}
+
+	/* If no bitmask matched, allow small direct enum values
+	 * (within valid cmd_sets[] bounds) to pass through */
+	if (!handled) {
+		if (cmd >= 0 && cmd < DSI_CMD_SET_MAX) {
+			mutex_lock(&panel->panel_lock);
+			rc = dsi_panel_tx_cmd_set(panel, cmd);
+			mutex_unlock(&panel->panel_lock);
+		} else {
+			DSI_DEBUG("disp_param: ignoring unhandled cmd=0x%x\n",
+				  cmd);
+		}
+	}
+
+	if (rc)
+		DSI_ERR("disp_param: cmd=0x%x failed, rc=%d\n", cmd, rc);
+
+	return rc;
 }
 
 ssize_t dsi_panel_disp_param_get(struct dsi_display *display, char *buf)
