@@ -4987,13 +4987,19 @@ int dsi_panel_disp_param_send(struct dsi_display *display, int cmd)
 
 	/*
 	 * Xiaomi displayfeature HAL sends bitmask-encoded command codes
-	 * (e.g. 0x0C0000 for sunlight HBM) via the disp_param sysfs node.
-	 * These are NOT dsi_cmd_set_type enum values and must be translated
-	 * before indexing into cmd_sets[]. Passing them raw causes an
-	 * out-of-bounds access and kernel panic.
+	 * via the disp_param sysfs node. Multiple nibble positions encode
+	 * different parameter groups independently:
 	 *
-	 * HBM control nibble: bits 16-19 (cmd & 0x0F0000)
+	 * Bits 16-19 (cmd & 0x0F0000): HBM control
+	 *   0x020000 = HBM ON,  0x010000 = HBM OFF
+	 *   0x0C0000 = sunlight HBM ON,  0x0A0000 = sunlight HBM OFF
+	 *
+	 * Bits 8-11 (cmd & 0xF00): Gamma/color control
+	 *   0x400 = gamma for HBM,  0x100 = gamma restore
+	 *   (no DTS command sets defined for these yet)
 	 */
+
+	/* HBM control nibble: bits 16-19 */
 	switch (cmd & 0x0F0000) {
 	case 0x020000: /* HBM ON */
 		DSI_INFO("disp_param: HBM ON (cmd=0x%x)\n", cmd);
@@ -5009,11 +5015,30 @@ int dsi_panel_disp_param_send(struct dsi_display *display, int cmd)
 		mutex_unlock(&panel->panel_lock);
 		handled = true;
 		break;
-	case 0x0C0000: /* Sunlight / auto HBM */
-		DSI_INFO("disp_param: sunlight HBM (cmd=0x%x)\n", cmd);
+	case 0x0C0000: /* Sunlight / auto HBM ON */
+		DSI_INFO("disp_param: sunlight HBM ON (cmd=0x%x)\n", cmd);
 		mutex_lock(&panel->panel_lock);
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_ON);
 		mutex_unlock(&panel->panel_lock);
+		handled = true;
+		break;
+	case 0x0A0000: /* Sunlight / auto HBM OFF */
+		DSI_INFO("disp_param: sunlight HBM OFF (cmd=0x%x)\n", cmd);
+		mutex_lock(&panel->panel_lock);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_OFF);
+		mutex_unlock(&panel->panel_lock);
+		handled = true;
+		break;
+	default:
+		break;
+	}
+
+	/* Gamma/color control nibble: bits 8-11 */
+	switch (cmd & 0xF00) {
+	case 0x400: /* Gamma adjust for HBM */
+	case 0x100: /* Gamma restore */
+		DSI_INFO("disp_param: gamma cmd=0x%x (no-op, no DTS cmds)\n",
+			 cmd);
 		handled = true;
 		break;
 	default:
@@ -5028,7 +5053,7 @@ int dsi_panel_disp_param_send(struct dsi_display *display, int cmd)
 			rc = dsi_panel_tx_cmd_set(panel, cmd);
 			mutex_unlock(&panel->panel_lock);
 		} else {
-			DSI_DEBUG("disp_param: ignoring unhandled cmd=0x%x\n",
+			DSI_INFO("disp_param: ignoring unhandled cmd=0x%x\n",
 				  cmd);
 		}
 	}
